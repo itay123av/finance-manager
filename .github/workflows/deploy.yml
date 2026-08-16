@@ -1,0 +1,70 @@
+name: פריסה ל-GitHub Pages
+
+# ⚠️ מה שעובר לכאן הוא **קוד האפליקציה בלבד**.
+#
+# העסקאות, היתרות והיעד יושבים ב-IndexedDB בדפדפן של המכשיר, ולעולם
+# אינם נכנסים ל-Git ואינם נפרסים. `private-data/` מוגן ב-.gitignore,
+# ויש בדיקה אוטומטית (`src/tests/privacy.test.ts`) שנכשלת אם קובץ
+# נתונים בכל זאת נכנס למעקב.
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# פריסה אחת בכל רגע; ריצה חדשה לא מבטלת פריסה שכבר החלה
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # ⚠️ השערים רצים לפני הפריסה, לא אחריה. גרסה שבורה לא צריכה
+      # להגיע לטלפון רק כדי שנגלה את זה שם.
+      - name: בדיקות, טיפוסים וסגנון
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+
+      # ⚠️ GitHub Pages מגיש מ-`https://<user>.github.io/<repo>/`.
+      # בלי ה-base הזה כל הנכסים נטענים מ-`/assets/...` ומקבלים 404,
+      # והתוצאה היא מסך לבן.
+      - name: בנייה
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+        run: npm run build
+
+      # Jekyll מתעלם מקבצים ותיקיות שמתחילים בקו תחתון
+      - run: touch dist/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

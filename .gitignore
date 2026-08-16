@@ -1,0 +1,37 @@
+# ============================================================
+#  נתונים פיננסיים אמיתיים — לעולם לא נכנסים ל-git
+#  (נאכף גם בבדיקה אוטומטית: src/tests/privacy.test.ts)
+# ============================================================
+private-data/
+*.csv
+*.xls
+*.xlsx
+*.ofx
+*.qif
+backup-*.json
+!src/tests/fixtures/*.csv
+
+# סודות
+.env
+.env.*
+!.env.example
+
+# תלויות ותוצרי בנייה
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.local
+dev-dist/
+
+# מערכת הפעלה ועורכים
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+
+# לוגים
+*.log
+npm-debug.log*

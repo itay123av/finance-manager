@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#14532d" />
+    <meta name="robots" content="noindex, nofollow" />
+    <!--
+      מדיניות אבטחת תוכן.
+      connect-src 'none' — האפליקציה לא יכולה לשלוח שום נתון לשום מקום.
+      זו ההגנה המרכזית על הנתונים הפיננסיים: גם קוד זדוני שיוזרק לא יוכל להוציא אותם החוצה.
+
+      הערה: `frame-ancestors` אינו נתמך ב-<meta> ומוגדר רק ב-public/_headers.
+      בפיתוח, `connect-src 'none'` חוסם גם את ה-WebSocket של Vite ולכן
+      אין רענון אוטומטי — זו התנהגות מכוונת ולא באג.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      iOS מתעלם מ-SVG ומהסמלים שב-manifest. בלי השורה הזו, "הוספה למסך
+      הבית" מייצרת סמל שהוא צילום מסך מוקטן של הדף.
+    -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="כספים" />
+    <title>ניהול כספים</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
