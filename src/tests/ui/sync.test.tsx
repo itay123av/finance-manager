@@ -233,6 +233,36 @@ describe('⭐ התנגשות', () => {
   });
 });
 
+/**
+ * ⭐ מכשיר חדש.
+ *
+ * ⚠️ התרחיש שנשבר בקלות: טלפון חדש שכל מטרתו למשוך נתונים קיימים,
+ * ונחסם מאחורי אונבורדינג. מי שימלא את הטופס ייצור נתונים שיידרסו
+ * מיד — ובדרך גם עלול לייצר התנגשות מיותרת.
+ */
+describe('⭐ מכשיר חדש לפני אונבורדינג', () => {
+  it('⭐ מסך הסנכרון נגיש בלי חשבונות ובלי יעד', async () => {
+    const { App } = await import('../../ui/App');
+    window.location.hash = '#/sync';
+
+    render(<App />);
+
+    expect(await screen.findByText(/מה זה נותן/)).toBeTruthy();
+    // ⭐ ולא הופנינו לאונבורדינג
+    expect(screen.queryByText('נתחיל')).toBeNull();
+  });
+
+  it('⭐ האונבורדינג מציע שחזור לפני שהוא מבקש למלא טופס', async () => {
+    const { App } = await import('../../ui/App');
+    window.location.hash = '#/';
+
+    render(<App />);
+
+    expect(await screen.findByText(/כבר יש לך נתונים במכשיר אחר/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'שחזור מהענן' })).toBeTruthy();
+  });
+});
+
 describe('⭐ הבאנר בלוח הבקרה', () => {
   it('⭐ כשהסנכרון כבוי — אין רכיב ואין אף פנייה לרשת', async () => {
     await onboard();

@@ -134,6 +134,9 @@ const HIDE_ADD_BUTTON_ON = new Set([
   '/budget',
 ]);
 
+/** המסכים שמכשיר חדש צריך עוד לפני שיש בו נתונים. */
+const RESTORE_ROUTES = new Set(['/sync', '/backup']);
+
 function Shell() {
   const { loading, onboarded, settings } = useAppData();
   const { pathname } = useLocation();
@@ -166,7 +169,17 @@ function Shell() {
   };
 
   if (loading) return <LoadingState label="פותח את המערכת…" />;
-  if (!onboarded) return <Onboarding />;
+
+  /**
+   * ⚠️ שני מסכים נגישים **לפני** האונבורדינג, ובכוונה.
+   *
+   * מכשיר חדש שכל מטרתו למשוך נתונים קיימים — מהענן או מקובץ גיבוי —
+   * לא אמור להיאלץ להמציא קודם יתרות ויעד. זה גם מייצר נתונים שנדרסים
+   * מיד אחר כך, וגם הופך "התקנתי בטלפון החדש" למסלול מבלבל.
+   *
+   * שאר המסכים חסומים כרגיל: בלי חשבונות ויעד אין מה להציג בהם.
+   */
+  if (!onboarded && !RESTORE_ROUTES.has(pathname)) return <Onboarding />;
 
   return (
     <AppLockGate>

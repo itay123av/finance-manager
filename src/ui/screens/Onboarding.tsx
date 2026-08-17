@@ -6,12 +6,22 @@
  */
 
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { fromShekels } from '../../core/money';
 import { todayInIsrael } from '../../core/dates';
 import { SAFETY_BUFFER_PRESETS_AGOROT, DEFAULT_SAFETY_BUFFER_AGOROT } from '../../core/types';
 import { db } from '../../data/db';
 import { completeOnboarding } from '../../data/repositories';
-import { AmountInput, Button, Card, ChoiceGroup, Field, Money, TextInput } from '../components/ui';
+import {
+  AmountInput,
+  Button,
+  buttonClass,
+  Card,
+  ChoiceGroup,
+  Field,
+  Money,
+  TextInput,
+} from '../components/ui';
 
 const DEFAULT_TARGET_AGOROT = 500_000; // ₪5,000
 const DEFAULT_MILESTONES = [100_000, 250_000, 500_000];
@@ -78,6 +88,25 @@ export function Onboarding() {
           הנתונים נשמרים רק במכשיר הזה.
         </p>
       </header>
+
+      {/*
+        ⚠️ מכשיר חדש שכבר יש לו נתונים במקום אחר לא אמור למלא את
+        הטופס הזה. מילוי ואז שחזור מייצר נתונים שנדרסים מיד, ובדרך
+        גם מבלבל — לכן המוצא נמצא כאן, למעלה, ולא מוסתר בסוף.
+      */}
+      <Card>
+        <p className="text-sm leading-relaxed text-slate-600">
+          כבר יש לך נתונים במכשיר אחר או בקובץ גיבוי?
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link to="/sync" className={buttonClass('secondary')}>
+            שחזור מהענן
+          </Link>
+          <Link to="/backup" className={buttonClass('ghost')}>
+            שחזור מקובץ
+          </Link>
+        </div>
+      </Card>
 
       <Card>
         <Field label="כמה כסף יש כרגע בחשבון הבנק?" hint="אפשר להזין בערך — אפשר לתקן אחר כך">
