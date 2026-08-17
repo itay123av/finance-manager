@@ -36,6 +36,7 @@ import { Categories } from './screens/Categories';
 import { Settings } from './screens/Settings';
 import { Privacy } from './screens/Privacy';
 import { Backup } from './screens/Backup';
+import { Sync } from './screens/Sync';
 import { More } from './screens/More';
 import { IncomeIdeas } from './screens/IncomeIdeas';
 import { ExpectedIncomes } from './screens/ExpectedIncomes';
@@ -63,6 +64,7 @@ const UNDER_MORE = new Set([
   '/import',
   '/categories',
   '/backup',
+  '/sync',
   '/settings',
   '/privacy',
 ]);
@@ -199,6 +201,7 @@ function Shell() {
           <Route path="/import" element={<Import />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/backup" element={<Backup />} />
+          <Route path="/sync" element={<Sync />} />
           <Route path="/more" element={<More />} />
           <Route path="/income-ideas" element={<IncomeIdeas />} />
           <Route path="/expected-income" element={<ExpectedIncomes />} />

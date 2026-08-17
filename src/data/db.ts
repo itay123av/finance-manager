@@ -1,12 +1,15 @@
 /**
  * בסיס הנתונים המקומי.
  *
- * הכל יושב ב-IndexedDB במכשיר. אין שרת, אין סנכרון, אין חיבור יוצא.
- * Dexie נותן טרנזקציות, אינדקסים ומיגרציות גרסה — שלושת הדברים
- * שכתיבה ידנית מול IndexedDB עושה גרוע.
+ * הכל יושב ב-IndexedDB במכשיר. Dexie נותן טרנזקציות, אינדקסים
+ * ומיגרציות גרסה — שלושת הדברים שכתיבה ידנית מול IndexedDB עושה גרוע.
  *
  * ⚠️ IndexedDB אינו מוצפן. ההגנה האמיתית היא נעילת המסך של המכשיר.
  * ראה PRIVACY.md.
+ *
+ * ⚠️ מגרסה 1.2 קיים סנכרון אופציונלי (`data/sync`). הוא **כבוי כברירת
+ * מחדל**, ומה שעוזב את המכשיר הוא בלוב מוצפן בלבד. בסיס הנתונים
+ * עצמו נשאר מקור האמת — הענן הוא עותק, לא מקור.
  */
 
 import Dexie, { type Table } from 'dexie';
@@ -27,6 +30,27 @@ import type {
   Transaction,
 } from '../core/types';
 
+/**
+ * מצב הסנכרון של המכשיר הזה. שורה יחידה.
+ *
+ * ⚠️ אין כאן סיסמאות: לא סיסמת ההצפנה ולא סיסמת החשבון. השדה
+ * `lastSyncedLocalHash` הוא טביעת אצבע חד־כיוונית שלא ניתן לשחזר
+ * ממנה נתונים — הוא משמש רק כדי לענות על "האם השתנה כאן משהו".
+ */
+export interface SyncStateRow {
+  id: 'singleton';
+  /** האם המשתמש הפעיל סנכרון בכלל. כבוי כברירת מחדל. */
+  enabled: boolean;
+  /** חותמת הבלוב בענן בסנכרון המוצלח האחרון. נקודת הייחוס להתנגשויות. */
+  lastSyncedRemoteAt: string | null;
+  /** טביעת אצבע של הנתונים המקומיים באותו רגע. */
+  lastSyncedLocalHash: string | null;
+  /** לתצוגה בלבד: "סונכרן לאחרונה ב…". */
+  lastSyncedAt: string | null;
+}
+
+export const SYNC_STATE_ID = 'singleton';
+
 export const DB_NAME = 'finance-manager';
 export const SETTINGS_ID = 'singleton';
 
@@ -45,6 +69,7 @@ export class FinanceDatabase extends Dexie {
   cards!: Table<CreditCard, string>;
   cardTransactions!: Table<CardTransaction, string>;
   backupRecords!: Table<BackupRecord, string>;
+  syncState!: Table<SyncStateRow, string>;
 
   constructor(name: string = DB_NAME) {
     super(name);
@@ -75,6 +100,16 @@ export class FinanceDatabase extends Dexie {
     // וזה מה שמפעיל את התזכורת.
     this.version(3).stores({
       backupRecords: 'id, createdAt, reason',
+    });
+
+    // גרסה 4: מצב הסנכרון של **המכשיר הזה**.
+    //
+    // ⚠️ טבלה נפרדת ולא שדה ב-`settings`, מסיבה אחת: `settings` נכללת
+    // בגיבוי ולכן מסתנכרנת. אילו "מתי סונכרנתי לאחרונה" היה יושב שם,
+    // הערך של הטלפון היה נכתב על המחשב בכל משיכה — ושני המכשירים היו
+    // מאבדים את נקודת הייחוס שמאפשרת לזהות התנגשות.
+    this.version(4).stores({
+      syncState: 'id',
     });
   }
 }
@@ -112,9 +147,21 @@ export function allTables(database: FinanceDatabase) {
  * מתבצע בטרנזקציה אחת — או שהכל נמחק, או ששום דבר לא נמחק.
  *
  * כולל את יומן הגיבויים: "מחיקת כל הנתונים" שמשאירה עקבות אינה מחיקה.
+ *
+ * ⚠️ כולל גם את מצב הסנכרון. אחרת המכשיר היה נשאר עם "סונכרנתי
+ * לאחרונה מול הבלוב הזה" מול בסיס נתונים ריק — ובפתיחה הבאה זה
+ * נראה בדיוק כמו "מחקתי הכל בכוונה", מה שהיה מעלה מחיקה לענן.
+ *
+ * ⚠️ מה שהמחיקה הזו **אינה** עושה: היא לא מוחקת את העותק בענן. זו
+ * פעולה נפרדת ומכוונת ב-`deleteRemoteVault`, כי "ניקיתי את הטלפון"
+ * ו"אני רוצה למחוק את הגיבוי שלי" הם שני דברים שונים לגמרי.
  */
 export async function wipeAllData(database: FinanceDatabase): Promise<void> {
-  const tables = [...Object.values(allTables(database)), database.backupRecords];
+  const tables = [
+    ...Object.values(allTables(database)),
+    database.backupRecords,
+    database.syncState,
+  ];
   await database.transaction('rw', tables, async () => {
     await Promise.all(tables.map((t) => t.clear()));
   });

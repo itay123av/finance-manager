@@ -29,6 +29,7 @@ import { db } from '../../data/db';
 import { saveSettings } from '../../data/repositories';
 import { AlertList, topAlerts } from '../components/AlertList';
 import { BackupReminderBanner } from '../components/BackupReminderBanner';
+import { SyncBanner } from '../components/SyncBanner';
 import { Page, Stack } from '../components/layout';
 import { confidenceLabelHe } from '../../core/confidence';
 import { formatDateHe, formatMonthHe } from '../../core/dates';
@@ -294,6 +295,7 @@ export function Dashboard({
       {goalCard}
       {alertsSection}
       <BackupReminderBanner />
+      <SyncBanner />
       {monthCard}
       {quickActions}
       {emptyState}
@@ -381,6 +383,7 @@ export function Dashboard({
         <Stack>
           {alertsSection}
           <BackupReminderBanner />
+      <SyncBanner />
           {reserveCard}
           {quickActions}
           {emptyState}

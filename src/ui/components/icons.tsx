@@ -42,6 +42,12 @@ export type IconName =
   | 'save'
   | 'settings'
   | 'lock'
+  | 'cloud'
+  // סנכרון
+  | 'cloud-check'
+  | 'cloud-off'
+  | 'refresh'
+  | 'git-merge'
   // מצב ומשמעות
   | 'shield-check'
   | 'sun'
@@ -159,6 +165,37 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
       <path d="M7.5 3v6h7V3" />
       <rect x="7.5" y="13" width="9" height="8" rx="1" />
+    </>
+  ),
+  cloud: <path d="M7 19a4.2 4.2 0 0 1-.3-8.4 5.3 5.3 0 0 1 10.1-1.2A3.9 3.9 0 0 1 17.5 19z" />,
+  'cloud-check': (
+    <>
+      <path d="M7 18a4.2 4.2 0 0 1-.3-8.4 5.3 5.3 0 0 1 10.1-1.2A3.9 3.9 0 0 1 17.5 18h-1" />
+      <path d="M9 18.2 11 20.2l4-4.2" />
+    </>
+  ),
+  'cloud-off': (
+    <>
+      <path d="M7 19a4.2 4.2 0 0 1-.3-8.4 5.3 5.3 0 0 1 3-3.5" />
+      <path d="M10.9 6.5a5.3 5.3 0 0 1 5.9 2.9A3.9 3.9 0 0 1 17.5 19h-6.9" />
+      <path d="m4 3.5 16 17" />
+    </>
+  ),
+  refresh: (
+    <>
+      <path d="M20 5.5v5h-5" />
+      <path d="M4 18.5v-5h5" />
+      <path d="M19.4 10.5a7.5 7.5 0 0 0-13-3.2L4 10.5" />
+      <path d="M4.6 13.5a7.5 7.5 0 0 0 13 3.2l2.4-3.2" />
+    </>
+  ),
+  'git-merge': (
+    <>
+      <circle cx="7" cy="5.5" r="2.5" />
+      <circle cx="7" cy="18.5" r="2.5" />
+      <circle cx="17" cy="12" r="2.5" />
+      <path d="M7 8v8" />
+      <path d="M9.5 5.9c3.2.5 4.6 2.3 5 5.4" />
     </>
   ),
   settings: (

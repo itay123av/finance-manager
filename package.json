@@ -1,7 +1,7 @@
 {
   "name": "finance-manager",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "description": "מערכת אישית לניהול כספים — מקומית לחלוטין, ללא שרת",
   "scripts": {
@@ -17,6 +17,7 @@
     "audit:privacy": "tsx scripts/phase7-privacy-scan.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^4.4.0",
     "papaparse": "^5.5.4",

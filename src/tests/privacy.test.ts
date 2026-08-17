@@ -28,6 +28,16 @@ function readText(...segments: string[]): string {
   return readFileSync(join(ROOT, ...segments), 'utf8');
 }
 
+/**
+ * מסיר הערות לפני סריקה.
+ *
+ * ⚠️ בלי זה, הערה שמזהירה מפני סכנה נספרת כסכנה — והדרך הקלה
+ * "לתקן" את הבדיקה היא למחוק את האזהרה. זה בדיוק ההפך מהרצוי.
+ */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
 function walkTsFiles(dir: string): string[] {
   const out: string[] = [];
   let entries: string[];
@@ -114,19 +124,31 @@ describe('🔒 שדות אסורים — אין ולא יהיה מקום לפר�
   });
 
   /**
-   * חריג יחיד ומכוון: `backup.ts` מקבל סיסמה להצפנת **קובץ הגיבוי**.
-   * זו סיסמה שהמשתמש בוחר ברגע הייצוא, היא עוברת כפרמטר בלבד, ואינה
-   * נשמרת בשום מקום — לא בבסיס הנתונים, לא בהגדרות ולא בקובץ עצמו.
-   * הבדיקה שאחריה מוודאת בדיוק את זה.
+   * חריגים מכוונים ומצומצמים למילה `password`.
+   *
+   * ⚠️ כל חריג כאן חייב בדיקה משלו שמוכיחה שהסיסמה **עוברת כפרמטר
+   * ולא נשמרת**. חריג בלי הוכחה הוא חור, לא חריג.
+   *
+   * - `backup.ts` — סיסמה להצפנת קובץ הגיבוי, נבחרת ברגע הייצוא.
+   * - `sync/vault.ts` — אותה סיסמה בדיוק, בדרך להצפנת הבלוב שנשלח לענן.
+   * - `sync/client.ts` — סיסמת **החשבון** מול שירות הסנכרון. זו
+   *   הסיסמה היחידה שעוזבת את המכשיר, והיא נפרדת מסיסמת ההצפנה.
+   *
+   * ⚠️ אף אחד מהם אינו סיסמת בנק. האיסור על פרטי בנק נשאר מוחלט.
    */
   const PASSPHRASE_EXEMPT = 'src/data/backup.ts';
+  const PASSWORD_EXEMPT = [
+    PASSPHRASE_EXEMPT,
+    'src/data/sync/vault.ts',
+    'src/data/sync/client.ts',
+  ];
 
   it('אף שדה אסור לא מופיע בקוד', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles) {
       const content = readText(file);
       for (const field of FORBIDDEN) {
-        if (file === PASSPHRASE_EXEMPT && field === 'password') continue;
+        if (PASSWORD_EXEMPT.includes(file) && field === 'password') continue;
         // חיפוש כשם מזהה, לא כחלק ממילה אחרת
         const asProperty = new RegExp(`\\b${field}\\b\\s*[?:]`, 'i');
         if (asProperty.test(content)) offenders.push(`${file} → ${field}`);
@@ -148,6 +170,49 @@ describe('🔒 שדות אסורים — אין ולא יהיה מקום לפר�
 
     // הסכמה שנשמרת אינה מכילה סיסמה כלל
     expect(readText('src/data/schema.ts')).not.toMatch(/password/i);
+  });
+
+  /**
+   * ⭐ אותה הוכחה, עבור הסנכרון.
+   *
+   * הסיכון כאן חמור יותר מאשר בגיבוי: סיסמה שתישמר לצד הבלוב תהפוך
+   * את ההצפנה מקצה לקצה לחסרת ערך.
+   */
+  it('⭐ סיסמת ההצפנה של הסנכרון אינה נשמרת ואינה נשלחת', () => {
+    const vault = stripComments(readText('src/data/sync/vault.ts'));
+
+    // לא נכתבת לבסיס הנתונים ולא להגדרות
+    expect(vault).not.toMatch(/(put|add|bulkPut|saveSettings)\([^)]*passphrase/i);
+    // לא נכנסת לאובייקט שנשלח לשרת
+    expect(vault).not.toMatch(/ciphertext\s*:\s*[^,\n]*passphrase/i);
+    // ולא לאחסון הדפדפן
+    expect(vault).not.toMatch(/(localStorage|sessionStorage)/);
+
+    // ⭐ הסיסמה עוברת רק לשכבת ההצפנה הקיימת והבדוקה
+    expect(vault).toContain('serializeBackup(data, { password: passphrase');
+    expect(vault).toContain('readBackup(ciphertext, passphrase)');
+  });
+
+  it('⭐ סיסמת החשבון אינה נשמרת בשום מקום', () => {
+    const client = stripComments(readText('src/data/sync/client.ts'));
+
+    expect(client).not.toMatch(/(localStorage|sessionStorage)\.[a-z]+\([^)]*password/i);
+    expect(client).not.toMatch(/(put|add|bulkPut|saveSettings)\([^)]*password/i);
+    // השימוש המותר היחיד: העברה לשירות ההתחברות
+    expect(client).toMatch(/signInWithPassword\(\{ email, password \}\)/);
+  });
+
+  /**
+   * ⭐ מפתח `service_role` עוקף RLS לחלוטין. אם הוא יגיע לקוד לקוח,
+   * כל מי שיפתח את קוד המקור של האתר יוכל לקרוא ולמחוק את הנתונים
+   * של כל המשתמשים.
+   */
+  it('⭐ אין מפתח service_role בקוד', () => {
+    for (const file of sourceFiles) {
+      expect(stripComments(readText(file)), `${file} מכיל service_role`).not.toMatch(
+        /service_role|service-role/i,
+      );
+    }
   });
 
   it('הטיפוסים לא מגדירים ישות של פרטי התחברות', () => {
@@ -217,9 +282,47 @@ describe('🔒 מדיניות אבטחת תוכן', () => {
   const html = readText('index.html');
   const headers = readText('public', '_headers');
 
-  it('connect-src חסום לחלוטין — נתונים לא יכולים לצאת', () => {
-    expect(html).toContain("connect-src 'none'");
-    expect(headers).toContain("connect-src 'none'");
+  /**
+   * ⭐ עד v1.1 היה כאן `connect-src 'none'` — חסימה מוחלטת.
+   *
+   * v1.2 הוסיפה סנכרון, ולכן ההבטחה השתנתה. הבדיקה לא נמחקה אלא
+   * הוחלפה בהבטחה מדויקת יותר, ובמובן מסוים קשה יותר לשמירה:
+   * **יעד יוצא אחד בדיוק, מפורש בשמו.**
+   *
+   * ⚠️ הדבר שהבדיקה הזו באמת מונעת הוא ההרחבה השקטה. `connect-src *`
+   * או `https:` היו "מתקנים" כל תקלת רשת עתידית תוך שנייה — ומבטלים
+   * את ההגנה כולה, כי אז קוד שיוזרק יוכל לשלוח את הנתונים לכל מקום.
+   */
+  const ALLOWED_HOST = 'https://mregcidikhfzmflofkzz.supabase.co';
+
+  function connectSrcOf(policy: string): string[] {
+    const directive = policy.split(';').find((part) => part.trim().startsWith('connect-src'));
+    expect(directive, 'אין הנחיית connect-src').toBeDefined();
+    return directive!.trim().split(/\s+/).slice(1);
+  }
+
+  it('⭐ connect-src מתיר יעד חיצוני אחד בלבד, ולא תווים כלליים', () => {
+    for (const [name, policy] of [
+      ['index.html', html],
+      ['_headers', headers],
+    ] as const) {
+      const sources = connectSrcOf(policy);
+
+      // אין פתח גורף
+      for (const wildcard of ['*', 'https:', 'http:', 'data:', "'unsafe-eval'"]) {
+        expect(sources, `${name} מתיר ${wildcard}`).not.toContain(wildcard);
+      }
+      expect(sources.some((s) => s.includes('*')), `${name} מכיל תו כללי`).toBe(false);
+
+      // ⭐ בדיוק היעד המוכר, ולא אחד נוסף
+      const external = sources.filter((s) => s !== "'self'");
+      expect(external, `${name} מתיר יעדים לא צפויים`).toEqual([ALLOWED_HOST]);
+    }
+  });
+
+  it('⭐ הכתובת ב-CSP זהה לזו שהקוד באמת פונה אליה', () => {
+    // הפרדה בין השתיים הייתה מייצרת סנכרון שנכשל בלי סיבה נראית לעין.
+    expect(readText('src/data/sync/config.ts')).toContain(ALLOWED_HOST);
   });
 
   it('חסימת מסגור, sniffing והפניות', () => {
@@ -274,6 +377,25 @@ describe('🔒 הפרדה בין נתוני דוגמה לנתונים אמיתי
     expect(privacy).toContain('ההגנה האמיתית היא נעילת המסך');
     // קוד הנעילה חייב להיות מוצג כהרתעה, לא כהצפנה
     expect(privacy).toContain('הוא אינו הצפנה');
+  });
+
+  /**
+   * ⭐ מסמך הפרטיות חייב לתאר את v1.2 כפי שהיא.
+   *
+   * ⚠️ המשפט "אין קריאות רשת בזמן ריצה" היה נכון עד v1.1 והוא נוח
+   * מאוד — בדיוק לכן קל להחזיר אותו בטעות בעריכה עתידית. מרגע
+   * שקיים סנכרון הוא הבטחת שווא, והבדיקה הזו נכשלת אם הוא חוזר.
+   */
+  it('⭐ המסמך אינו מבטיח "אפס רשת" אחרי שנוסף סנכרון', () => {
+    const privacy = readText('PRIVACY.md');
+
+    expect(privacy).not.toContain('אין קריאות רשת בזמן ריצה');
+    expect(privacy).not.toContain("connect-src 'none'  ");
+
+    // ומצהיר במפורש על מה שכן קורה
+    expect(privacy).toContain('כבוי כברירת מחדל');
+    expect(privacy).toContain('בלוב אחד מוצפן');
+    expect(privacy).toContain('הנתונים בענן אבודים');
   });
 });
 

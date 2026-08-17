@@ -8,16 +8,22 @@
     <meta name="robots" content="noindex, nofollow" />
     <!--
       מדיניות אבטחת תוכן.
-      connect-src 'none' — האפליקציה לא יכולה לשלוח שום נתון לשום מקום.
-      זו ההגנה המרכזית על הנתונים הפיננסיים: גם קוד זדוני שיוזרק לא יוכל להוציא אותם החוצה.
+
+      connect-src — עד v1.1 היה 'none', כלומר האפליקציה לא יכלה לשלוח דבר
+      לשום מקום. מ-v1.2 יש סנכרון אופציונלי, ולכן נפתחה **כתובת אחת בדיוק**:
+      שרת ה-Supabase של הפרויקט. לא '*', לא 'https:', ולא תת-דומיינים אחרים.
+
+      מה זה עדיין מונע: קוד זדוני שיוזרק לא יוכל לשלוח את הנתונים ליעד
+      שהוא בוחר — רק ליעד שכבר מוגדר כאן, ושם הוא ייתקל ב-RLS ובהצפנה.
+      מה זה כבר לא מונע: הבטחה גורפת ש"שום דבר לא עוזב את המכשיר".
+      ההבטחה המדויקת מופיעה ב-PRIVACY.md.
 
       הערה: `frame-ancestors` אינו נתמך ב-<meta> ומוגדר רק ב-public/_headers.
-      בפיתוח, `connect-src 'none'` חוסם גם את ה-WebSocket של Vite ולכן
-      אין רענון אוטומטי — זו התנהגות מכוונת ולא באג.
+      בפיתוח, ה-WebSocket של Vite חסום ולכן אין רענון אוטומטי — מכוון.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; connect-src 'self' https://mregcidikhfzmflofkzz.supabase.co; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!--

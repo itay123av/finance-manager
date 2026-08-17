@@ -59,6 +59,7 @@ export const SIDEBAR_GROUPS: NavGroup[] = [
       { to: '/import', label: 'ייבוא קובץ', icon: 'download' },
       { to: '/categories', label: 'קטגוריות', icon: 'tag' },
       { to: '/backup', label: 'גיבוי ושחזור', icon: 'save' },
+      { to: '/sync', label: 'סנכרון', icon: 'cloud' },
     ],
   },
   {

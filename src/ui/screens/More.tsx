@@ -51,6 +51,7 @@ const SECTIONS: { title: string; items: Item[] }[] = [
       { to: '/import', icon: 'download', label: 'ייבוא קובץ', note: 'עו״ש או פירוט כרטיס אשראי' },
       { to: '/categories', icon: 'tag', label: 'קטגוריות', note: 'לערוך, להוסיף, לארכב' },
       { to: '/backup', icon: 'save', label: 'גיבוי ושחזור', note: 'ההגנה היחידה מאובדן המכשיר' },
+      { to: '/sync', icon: 'cloud', label: 'סנכרון', note: 'אותם נתונים בטלפון ובמחשב, מוצפנים' },
     ],
   },
   {
