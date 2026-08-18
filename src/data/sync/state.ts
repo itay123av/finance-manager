@@ -26,6 +26,10 @@ const EMPTY_STATE: SyncStateRow = {
   lastSyncedRemoteAt: null,
   lastSyncedLocalHash: null,
   lastSyncedAt: null,
+  rememberedPassphrase: null,
+  // ⚠️ ברירת המחדל היא כן. סנכרון שדורש הקלדה ידנית בכל פעם הוא
+  // סנכרון שלא קורה, וזה מה שהוביל לאובדן נתונים.
+  rememberEnabled: true,
 };
 
 export async function readSyncState(db: FinanceDatabase): Promise<SyncStateRow> {
@@ -41,9 +45,42 @@ export async function writeSyncState(
   return next;
 }
 
-/** מכבה סנכרון ומוחק את נקודת הייחוס. הנתונים עצמם לא נוגעים. */
+/**
+ * מכבה סנכרון ומוחק את נקודת הייחוס ואת הסיסמה השמורה.
+ * הנתונים עצמם לא נוגעים.
+ */
 export async function disableSync(db: FinanceDatabase): Promise<void> {
   await db.syncState.put({ ...EMPTY_STATE });
+}
+
+// ---------------------------------------------------------------------------
+// הסיסמה השמורה
+// ---------------------------------------------------------------------------
+
+/**
+ * שומר את סיסמת ההצפנה במכשיר, כדי שהסנכרון יוכל לרוץ לבד.
+ *
+ * ⚠️ בלי זה אין סנכרון אוטומטי — המפתח נדרש בכל העלאה, וללא גישה
+ * אליו האפליקציה יכולה רק לבקש מהמשתמש להקליד. ההחלטה הזו התקבלה
+ * אחרי שמשתמש איבד נתונים בדיוק כי הסנכרון היה תלוי בלחיצה ידנית.
+ *
+ * ⚠️ ההסבר למה זה אינו מחליש את ההצפנה נמצא ליד `rememberedPassphrase`
+ * ב-`data/db.ts`. בקצרה: המפתח יושב לצד נתונים שכבר גלויים.
+ */
+export async function rememberPassphrase(
+  db: FinanceDatabase,
+  passphrase: string,
+): Promise<void> {
+  await writeSyncState(db, { rememberedPassphrase: passphrase, rememberEnabled: true });
+}
+
+/** שוכח את הסיסמה. הסנכרון האוטומטי נעצר, הנתונים נשארים. */
+export async function forgetPassphrase(db: FinanceDatabase): Promise<void> {
+  await writeSyncState(db, { rememberedPassphrase: null, rememberEnabled: false });
+}
+
+export async function readRememberedPassphrase(db: FinanceDatabase): Promise<string | null> {
+  return (await readSyncState(db)).rememberedPassphrase;
 }
 
 // ---------------------------------------------------------------------------

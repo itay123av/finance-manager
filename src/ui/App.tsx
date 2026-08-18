@@ -19,6 +19,7 @@
 import { useState } from 'react';
 import { HashRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppDataProvider, useAppData } from './AppData';
+import { SyncEngine } from './SyncEngine';
 import { AppLockGate } from './AppLockGate';
 import { ToastProvider } from './Toast';
 import { useIsDesktop } from './useMediaQuery';
@@ -253,6 +254,12 @@ export function App() {
     <HashRouter>
       <AppDataProvider>
         <ToastProvider>
+          {/*
+            ⚠️ מתחת ל-`AppDataProvider` ובכוונה: המנוע מגיב לאותו
+            `useLiveQuery` שמזין את המסכים, ולכן כל מסלול כתיבה מכוסה
+            בלי שאף מסך יצטרך לקרוא לסנכרון בעצמו.
+          */}
+          <SyncEngine />
           <Shell />
         </ToastProvider>
       </AppDataProvider>

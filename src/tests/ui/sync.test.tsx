@@ -154,7 +154,51 @@ describe('אחרי התחברות', () => {
    * נבדק מול המקום היחיד שבו היא הייתה יכולה לשרוד — בסיס הנתונים
    * ואחסון הדפדפן.
    */
-  it('⭐ סיסמת ההצפנה לא נשמרת בבסיס הנתונים ולא ב-localStorage', async () => {
+  /**
+   * ⚠️ **הבדיקה הזו הפוכה ממה שהיא הייתה, וזה מכוון.**
+   *
+   * בגרסה הראשונה היא דרשה שסיסמת ההצפנה **לא** תישמר בשום מקום.
+   * זה נשמע מחמיר, אבל הוא הגן מפני תוקף שכבר ניצח: העסקאות עצמן
+   * שמורות ב-IndexedDB בטקסט גלוי, ומי שמגיע אליהן לא צריך סיסמה.
+   * מה שההחמרה כן עשתה — חייבה הקלדה ידנית בכל סנכרון, ולכן נתונים
+   * לא הגיעו לענן ואבדו אצל משתמש אמיתי.
+   *
+   * מה שנשאר בתוקף ונבדק בנפרד: השרת לא מקבל את הסיסמה ולא יכול
+   * לפתוח את הבלוב.
+   */
+  it('⭐ סיסמת ההצפנה נשמרת במכשיר כדי לאפשר סנכרון אוטומטי', async () => {
+    await onboard();
+    await spend(64);
+    renderSync();
+
+    await userEvent.type(await screen.findByLabelText('סיסמה'), PASSPHRASE);
+
+    await waitFor(async () =>
+      expect((await readSyncState(db)).rememberedPassphrase).toBe(PASSPHRASE),
+    );
+  });
+
+  it('⭐ ביטול הזכירה מוחק את הסיסמה מיד', async () => {
+    await onboard();
+    renderSync();
+
+    await userEvent.type(await screen.findByLabelText('סיסמה'), PASSPHRASE);
+    await waitFor(async () =>
+      expect((await readSyncState(db)).rememberedPassphrase).toBe(PASSPHRASE),
+    );
+
+    await userEvent.click(screen.getByRole('checkbox', { name: /לזכור במכשיר הזה/ }));
+
+    await waitFor(async () =>
+      expect((await readSyncState(db)).rememberedPassphrase).toBeNull(),
+    );
+  });
+
+  /**
+   * ⭐ ההבטחה שלא השתנתה: סיסמת **החשבון** לא נשמרת, והסיסמה
+   * שנשמרת אינה עוזבת את המכשיר.
+   */
+  it('⭐ הסיסמה השמורה לא מגיעה לשרת', async () => {
     await onboard();
     await spend(64);
     renderSync();
@@ -162,12 +206,8 @@ describe('אחרי התחברות', () => {
     await userEvent.type(await screen.findByLabelText('סיסמה'), PASSPHRASE);
     await userEvent.click(await screen.findByRole('button', { name: /להעלות/ }));
 
-    await waitFor(async () => expect((await readSyncState(db)).lastSyncedRemoteAt).not.toBeNull());
-
-    const settings = JSON.stringify(await db.settings.toArray());
-    expect(settings).not.toContain(PASSPHRASE);
-    expect(JSON.stringify(await db.syncState.toArray())).not.toContain(PASSPHRASE);
-    expect(JSON.stringify({ ...localStorage })).not.toContain(PASSPHRASE);
+    await waitFor(() => expect(fakeServer.row).not.toBeNull());
+    expect(JSON.stringify(fakeServer.row)).not.toContain(PASSPHRASE);
   });
 
   it('⭐ מה שנשלח לשרת אינו מכיל טקסט גלוי', async () => {

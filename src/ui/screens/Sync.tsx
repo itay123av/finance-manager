@@ -7,9 +7,13 @@
  *    סיסמת ההצפנה לא עוזבת את המכשיר לעולם. אילו היו זהות, מי ששולט
  *    בשרת היה שולט גם במפתח — וההצפנה הייתה קישוט.
  *
- * 2. **סיסמת ההצפנה אינה נשמרת, גם לא "עד סוף היום".** היא יושבת
- *    ב-state של הרכיב, ונעלמת ברענון. זה מעצבן, וזה בדיוק המחיר של
- *    הצפנה אמיתית — סיסמה ששמורה לצד הבלוב שווה לאין הצפנה.
+ * 2. **סיסמת ההצפנה נשמרת במכשיר, וזו החלטה שהתהפכה.**
+ *    בגרסה הראשונה היא הוחזקה בזיכרון בלבד ונמחקה בכל רענון. זה נשמע
+ *    מחמיר יותר, אבל הוא הגן מפני תוקף שכבר ניצח: העסקאות עצמן שמורות
+ *    ב-IndexedDB בטקסט גלוי, ומי שמגיע אליהן לא צריך את הסיסמה. מה
+ *    שההחמרה כן עשתה — היא חייבה הקלדה ידנית בכל סנכרון, ולכן נתונים
+ *    לא נשמרו בענן ואבדו. ההצפנה מול **השרת** לא נפגעה: הוא עדיין
+ *    מקבל בלוב אטום. מי שרוצה את ההתנהגות הישנה יכול לבטל את הזכירה.
  *
  * 3. **דריסה לא קורית בלי מסך.** משיכה מציגה כמה רשומות נכנסות מול
  *    כמה יש, ומה ייווצר גיבוי. גם משיכה "בטוחה" עוברת דרך האישור הזה.
@@ -34,7 +38,12 @@ import {
   SyncError,
 } from '../../data/sync/client';
 import { applyPull, checkSync, preparePull, push, type PendingPull, type SyncStatus } from '../../data/sync/sync';
-import { disableSync, readSyncState } from '../../data/sync/state';
+import {
+  disableSync,
+  forgetPassphrase,
+  readSyncState,
+  rememberPassphrase,
+} from '../../data/sync/state';
 import { isValidSyncPassphrase, MIN_SYNC_PASSPHRASE_LENGTH, VaultError } from '../../data/sync/vault';
 import {
   Banner,
@@ -65,8 +74,8 @@ export function Sync() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // ⚠️ בזיכרון בלבד. אין `saveSettings`, אין localStorage.
   const [passphrase, setPassphrase] = useState('');
+  const [remember, setRemember] = useState(true);
 
   const [pending, setPending] = useState<PendingPull | null>(null);
   const [localCount, setLocalCount] = useState(0);
@@ -80,6 +89,13 @@ export function Sync() {
       const session = await currentSession();
       setEmail(session?.user.email ?? null);
       setLocalCount(await db.transactions.count());
+
+      // ⚠️ הסיסמה השמורה נטענת לשדה, כדי שהמסך ישקף את המצב האמיתי:
+      // סנכרון שרץ לבד ולא ממתין להקלדה.
+      const stored = await readSyncState(db);
+      if (stored.rememberedPassphrase) setPassphrase(stored.rememberedPassphrase);
+      setRemember(stored.rememberEnabled);
+
       setStatus(session ? await checkSync(db) : null);
     } catch (e) {
       setError(messageOf(e));
@@ -91,6 +107,17 @@ export function Sync() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  /**
+   * ⚠️ שומר את הסיסמה ברגע שהיא תקינה — ולא רק אחרי לחיצה על "להעלות".
+   *
+   * אחרת נוצר המצב הגרוע ביותר: המשתמש מקליד סיסמה, רואה תיבה מסומנת
+   * שמבטיחה סנכרון אוטומטי, יוצא מהמסך בלי ללחוץ — ושום דבר לא נשמר.
+   */
+  useEffect(() => {
+    if (!email || !remember || !isValidSyncPassphrase(passphrase)) return;
+    void rememberPassphrase(db, passphrase);
+  }, [email, remember, passphrase]);
 
   if (checking && !status && !email) return <LoadingState label="בודק מצב סנכרון…" />;
 
@@ -115,7 +142,16 @@ export function Sync() {
             onRefresh={refresh}
           />
 
-          <PassphraseCard value={passphrase} onChange={setPassphrase} />
+          <PassphraseCard
+            value={passphrase}
+            onChange={setPassphrase}
+            remember={remember}
+            onRememberChange={async (next) => {
+              setRemember(next);
+              if (next && isValidSyncPassphrase(passphrase)) await rememberPassphrase(db, passphrase);
+              if (!next) await forgetPassphrase(db);
+            }}
+          />
 
           <ActionsCard
             status={status}
@@ -385,7 +421,17 @@ function StatusCard({
   );
 }
 
-function PassphraseCard({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function PassphraseCard({
+  value,
+  onChange,
+  remember,
+  onRememberChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  remember: boolean;
+  onRememberChange: (next: boolean) => void | Promise<void>;
+}) {
   const valid = isValidSyncPassphrase(value);
   return (
     <Card>
@@ -418,6 +464,31 @@ function PassphraseCard({ value, onChange }: { value: string; onChange: (v: stri
           קצרה מדי. צריך {MIN_SYNC_PASSPHRASE_LENGTH} תווים לפחות.
         </p>
       ) : null}
+
+      {/*
+        ⚠️ מסומן כברירת מחדל, ובכוונה.
+
+        בלי הסיסמה השמורה אין סנכרון אוטומטי — כל שמירה לענן דורשת
+        להיכנס למסך הזה ולהקליד. זה בדיוק המצב שבו נתונים לא הגיעו
+        לענן ואבדו.
+      */}
+      <label className="mt-4 flex min-h-11 items-start gap-3">
+        <input
+          type="checkbox"
+          checked={remember}
+          onChange={(e) => void onRememberChange(e.target.checked)}
+          className="mt-1 size-5 shrink-0 rounded border-slate-300"
+        />
+        <span>
+          <span className="block text-sm font-semibold text-slate-800">
+            לזכור במכשיר הזה ולסנכרן אוטומטית
+          </span>
+          <span className="block text-xs leading-relaxed text-slate-500">
+            כל שינוי יישמר לענן לבד. השרת עדיין לא יכול לפתוח את הנתונים. בטל את הסימון במחשב
+            משותף — אז הסנכרון יחזור להיות ידני.
+          </span>
+        </span>
+      </label>
     </Card>
   );
 }
