@@ -9,11 +9,12 @@
  */
 
 import { Page } from '../components/layout';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../AppData';
 import { db, wipeAllData } from '../../data/db';
 import { saveSettings, updateGoal } from '../../data/repositories';
+import { readSyncState } from '../../data/sync/state';
 import { createLock, isValidPin, MAX_PIN_LENGTH, MIN_PIN_LENGTH } from '../../data/appLock';
 import { fromShekels, toShekels } from '../../core/money';
 import {
@@ -73,6 +74,17 @@ export function Settings() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [wiping, setWiping] = useState(false);
+
+  /**
+   * קוד החיבור, אם המכשיר מסונכרן.
+   *
+   * ⚠️ נטען רק כדי להזהיר לפני מחיקה. הוא לא מוצג כאן — התצוגה
+   * שלו יושבת במסך הסנכרון, מאחורי לחיצה מפורשת.
+   */
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  useEffect(() => {
+    void readSyncState(db).then((s) => setPairingCode(s.pairingCode));
+  }, []);
 
   const [lockSheet, setLockSheet] = useState(false);
   const [pin, setPin] = useState('');
@@ -451,6 +463,19 @@ export function Settings() {
             <p className="mt-2 font-medium text-slate-800">
               אם עוד לא ייצאת גיבוי — כדאי לעשות את זה קודם. אין דרך לשחזר בלעדיו.
             </p>
+            {/*
+              ⚠️ המחיקה מוחקת גם את קוד החיבור. מי שזה המכשיר היחיד
+              שלו עם הקוד יאבד את הגישה לעותק בענן — והפעלה מחדש
+              תיצור קוד חדש וחשבון ריק חדש, בלי שום רמז לכך שהעותק
+              הישן עדיין קיים ולא נגיש.
+            */}
+            {pairingCode ? (
+              <p className="mt-2 font-medium text-danger">
+                המכשיר הזה מסונכרן, והמחיקה תמחק גם את קוד החיבור. בלי הקוד אי אפשר להגיע
+                לעותק שבענן — גם לא על ידי הפעלת סנכרון מחדש, שתיצור קוד חדש וחשבון ריק. אם
+                אין לך את הקוד במקום נוסף, העתק אותו קודם ממסך הסנכרון.
+              </p>
+            ) : null}
           </>
         }
         confirmLabel="למחוק הכל"
