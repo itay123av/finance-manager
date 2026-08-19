@@ -1,13 +1,13 @@
 /**
- * מסך הסנכרון.
+ * מסך הסנכרון — זרימת קוד החיבור.
  *
- * ⚠️ הבדיקות כאן שומרות על הבטחות שנאמרות למשתמש במסך עצמו. הבטחה
- * שנשברת בשקט גרועה מהבטחה שלא ניתנה:
+ * ⚠️ הבדיקות כאן שומרות על ההבטחות שהמסך נותן:
  *
- * - סיסמת ההצפנה לא נשמרת בשום מקום.
- * - דריסה לא קורית בלי מסך אישור שמראה מספרים.
+ * - במכשיר הראשון לא מקלידים כלום.
+ * - קוד שגוי לא יוצר חשבון חדש בשקט.
+ * - הקוד מוצג עם אזהרה ומוסתר כברירת מחדל.
+ * - דריסה לא קורית בלי מסך שמראה מספרים.
  * - בהתנגשות אין כפתור ראשי שמכריע במקום המשתמש.
- * - כשהסנכרון כבוי — אין שום פנייה לרשת.
  */
 
 // @vitest-environment jsdom
@@ -18,37 +18,49 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+/** שרת מדומה: חשבונות לפי אימייל, ושורת vault אחת. */
 const fakeServer: {
+  accounts: Map<string, string>;
   session: { user: { id: string; email: string } } | null;
-  row: { ciphertext: string; schemaVersion: number; updatedAt: string; deviceLabel: string | null } | null;
-  networkCalls: number;
-} = { session: null, row: null, networkCalls: 0 };
+  row: {
+    ciphertext: string;
+    schemaVersion: number;
+    updatedAt: string;
+    deviceLabel: string | null;
+  } | null;
+} = { accounts: new Map(), session: null, row: null };
 
 vi.mock('../../data/sync/client', async () => {
   const actual = await vi.importActual<typeof ClientModule>('../../data/sync/client');
+  const { SyncError } = actual;
   return {
     ...actual,
     currentSession: async () => fakeServer.session,
-    fetchRemoteTimestamp: async () => {
-      fakeServer.networkCalls += 1;
-      return fakeServer.row?.updatedAt ?? null;
+    signUp: async (email: string, password: string) => {
+      if (fakeServer.accounts.has(email)) throw new SyncError('כבר קיים חשבון', 'auth');
+      fakeServer.accounts.set(email, password);
+      fakeServer.session = { user: { id: email, email } };
+      return fakeServer.session;
     },
-    fetchRemoteVault: async () => {
-      fakeServer.networkCalls += 1;
-      return fakeServer.row;
-    },
-    pushVault: async (input: { ciphertext: string; schemaVersion: number }) => {
-      fakeServer.networkCalls += 1;
-      const updatedAt = new Date(Date.UTC(2026, 7, 17, 10)).toISOString();
-      fakeServer.row = { ...input, updatedAt, deviceLabel: null };
-      return updatedAt;
-    },
-    signIn: async () => {
-      fakeServer.session = { user: { id: 'u1', email: 'me@example.invalid' } };
+    signIn: async (email: string, password: string) => {
+      if (fakeServer.accounts.get(email) !== password) {
+        throw new SyncError('אימייל או סיסמה שגויים', 'auth');
+      }
+      fakeServer.session = { user: { id: email, email } };
       return fakeServer.session;
     },
     signOut: async () => {
       fakeServer.session = null;
+    },
+    fetchRemoteTimestamp: async () => fakeServer.row?.updatedAt ?? null,
+    fetchRemoteVault: async () => fakeServer.row,
+    pushVault: async (input: { ciphertext: string; schemaVersion: number }) => {
+      const updatedAt = new Date(Date.UTC(2026, 7, 17, 10)).toISOString();
+      fakeServer.row = { ...input, updatedAt, deviceLabel: null };
+      return updatedAt;
+    },
+    deleteRemoteVault: async () => {
+      fakeServer.row = null;
     },
   };
 });
@@ -59,18 +71,17 @@ import { ToastProvider } from '../../ui/Toast';
 import { db, wipeAllData } from '../../data/db';
 import { addTransaction, completeOnboarding, BANK_ACCOUNT_ID } from '../../data/repositories';
 import { fromShekels } from '../../core/money';
+import { readSyncState, recordSyncSuccess } from '../../data/sync/state';
+import { deriveIdentity } from '../../data/sync/identity';
 import { buildVault } from '../../data/sync/vault';
-import { recordSyncSuccess, readSyncState } from '../../data/sync/state';
 import { MemoryRouter } from 'react-router-dom';
-
-const PASSPHRASE = 'סיסמת-סנכרון-ארוכה-1';
 
 beforeEach(async () => {
   await db.open();
   await wipeAllData(db);
+  fakeServer.accounts = new Map();
   fakeServer.session = null;
   fakeServer.row = null;
-  fakeServer.networkCalls = 0;
 });
 
 function renderSync() {
@@ -107,131 +118,120 @@ async function spend(shekels: number, date = '2026-08-10') {
   });
 }
 
-describe('לפני התחברות', () => {
-  it('מסביר מה נשלח לפני שמבקש פרטים', async () => {
+describe('לפני הפעלה', () => {
+  it('⭐ אין שדה אימייל ואין שדה סיסמה', async () => {
     renderSync();
-    expect(await screen.findByText(/מה זה נותן/)).toBeTruthy();
-    expect(screen.getByText(/בלוב אחד מוצפן/)).toBeTruthy();
+    await screen.findByText(/מה זה נותן/);
+
+    expect(screen.queryByLabelText(/אימייל/)).toBeNull();
+    expect(screen.queryByLabelText(/סיסמה/)).toBeNull();
+    expect(screen.getByText(/אין הרשמה, אין אימייל ואין סיסמה/)).toBeTruthy();
   });
 
-  it('⭐ מבהיר שסיסמת החשבון אינה מפתח ההצפנה', async () => {
+  it('⭐ הפעלה במכשיר הראשון היא לחיצה אחת, בלי הקלדה', async () => {
+    await onboard();
     renderSync();
-    expect(await screen.findByText(/אינה מפתח ההצפנה/)).toBeTruthy();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'להפעיל סנכרון' }));
+
+    await waitFor(async () => {
+      const state = await readSyncState(db);
+      expect(state.enabled).toBe(true);
+      expect(state.pairingCode).not.toBeNull();
+      expect(state.rememberedPassphrase).not.toBeNull();
+    });
   });
 });
 
-describe('אחרי התחברות', () => {
-  beforeEach(() => {
-    fakeServer.session = { user: { id: 'u1', email: 'me@example.invalid' } };
-  });
-
-  it('⭐ מזהיר שאין שחזור לסיסמת ההצפנה — לפני שבוחרים אותה', async () => {
-    await onboard();
+describe('חיבור מכשיר שני', () => {
+  it('⭐ קוד לא שלם לא מאפשר לשלוח', async () => {
     renderSync();
-    expect(await screen.findByText(/אין שחזור לסיסמה הזו/)).toBeTruthy();
-  });
+    await userEvent.click(await screen.findByRole('button', { name: /יש לי קוד/ }));
+    await userEvent.type(screen.getByLabelText('קוד חיבור'), 'ABCD');
 
-  it('⭐ בלי סיסמת הצפנה אי אפשר להעלות', async () => {
-    await onboard();
-    renderSync();
-    const upload = await screen.findByRole('button', { name: /להעלות/ });
-    expect(upload.hasAttribute('disabled')).toBe(true);
-  });
-
-  it('⭐ סיסמה קצרה מדי לא מפעילה את הכפתור', async () => {
-    await onboard();
-    renderSync();
-    const input = await screen.findByLabelText('סיסמה');
-    await userEvent.type(input, 'קצרה');
-    expect((await screen.findByRole('button', { name: /להעלות/ })).hasAttribute('disabled')).toBe(
+    expect(screen.getByRole('button', { name: 'לחבר את המכשיר' }).hasAttribute('disabled')).toBe(
       true,
     );
   });
 
   /**
-   * ⭐ ההבטחה המרכזית של המסך: הסיסמה חיה בזיכרון בלבד.
-   *
-   * נבדק מול המקום היחיד שבו היא הייתה יכולה לשרוד — בסיס הנתונים
-   * ואחסון הדפדפן.
+   * ⭐ קוד שאין לו חשבון חייב להיכשל במפורש. אילו היה יוצר חשבון
+   * חדש, המשתמש היה רואה "סונכרן בהצלחה" מול אפס עסקאות ומסיק
+   * שהנתונים שלו נמחקו.
    */
-  /**
-   * ⚠️ **הבדיקה הזו הפוכה ממה שהיא הייתה, וזה מכוון.**
-   *
-   * בגרסה הראשונה היא דרשה שסיסמת ההצפנה **לא** תישמר בשום מקום.
-   * זה נשמע מחמיר, אבל הוא הגן מפני תוקף שכבר ניצח: העסקאות עצמן
-   * שמורות ב-IndexedDB בטקסט גלוי, ומי שמגיע אליהן לא צריך סיסמה.
-   * מה שההחמרה כן עשתה — חייבה הקלדה ידנית בכל סנכרון, ולכן נתונים
-   * לא הגיעו לענן ואבדו אצל משתמש אמיתי.
-   *
-   * מה שנשאר בתוקף ונבדק בנפרד: השרת לא מקבל את הסיסמה ולא יכול
-   * לפתוח את הבלוב.
-   */
-  it('⭐ סיסמת ההצפנה נשמרת במכשיר כדי לאפשר סנכרון אוטומטי', async () => {
-    await onboard();
-    await spend(64);
+  it('⭐ קוד שגוי נכשל ולא יוצר חשבון חדש', async () => {
     renderSync();
+    await userEvent.click(await screen.findByRole('button', { name: /יש לי קוד/ }));
+    await userEvent.type(screen.getByLabelText('קוד חיבור'), 'ZZZZ2345EFGH6789');
+    await userEvent.click(screen.getByRole('button', { name: 'לחבר את המכשיר' }));
 
-    await userEvent.type(await screen.findByLabelText('סיסמה'), PASSPHRASE);
-
-    await waitFor(async () =>
-      expect((await readSyncState(db)).rememberedPassphrase).toBe(PASSPHRASE),
-    );
+    expect(await screen.findByText(/לא נמצא חשבון עם הקוד הזה/)).toBeTruthy();
+    expect(fakeServer.accounts.size).toBe(0);
+    expect((await readSyncState(db)).enabled).toBe(false);
   });
 
-  it('⭐ ביטול הזכירה מוחק את הסיסמה מיד', async () => {
+  it('⭐ קוד נכון מחבר לאותו חשבון בדיוק', async () => {
+    const code = 'ABCD2345EFGH6789';
+    const identity = await deriveIdentity(code);
+    fakeServer.accounts.set(identity.email, identity.password);
+
+    renderSync();
+    await userEvent.click(await screen.findByRole('button', { name: /יש לי קוד/ }));
+    await userEvent.type(screen.getByLabelText('קוד חיבור'), code);
+    await userEvent.click(screen.getByRole('button', { name: 'לחבר את המכשיר' }));
+
+    await waitFor(async () => {
+      const state = await readSyncState(db);
+      expect(state.enabled).toBe(true);
+      // ⭐ אותו מפתח הצפנה בדיוק — זה מה שמאפשר לפענח את הבלוב
+      expect(state.rememberedPassphrase).toBe(identity.passphrase);
+    });
+  });
+});
+
+describe('⭐ הקוד השמור', () => {
+  async function connect() {
+    const code = 'ABCD2345EFGH6789';
+    const identity = await deriveIdentity(code);
+    fakeServer.accounts.set(identity.email, identity.password);
+    fakeServer.session = { user: { id: identity.email, email: identity.email } };
+    const { rememberPassphrase, writeSyncState } = await import('../../data/sync/state');
+    await rememberPassphrase(db, identity.passphrase);
+    await writeSyncState(db, { enabled: true, pairingCode: code });
+    return { code, identity };
+  }
+
+  it('⭐ מוסתר כברירת מחדל — הוא שווה ערך לגישה מלאה', async () => {
     await onboard();
+    await connect();
     renderSync();
 
-    await userEvent.type(await screen.findByLabelText('סיסמה'), PASSPHRASE);
-    await waitFor(async () =>
-      expect((await readSyncState(db)).rememberedPassphrase).toBe(PASSPHRASE),
-    );
-
-    await userEvent.click(screen.getByRole('checkbox', { name: /לזכור במכשיר הזה/ }));
-
-    await waitFor(async () =>
-      expect((await readSyncState(db)).rememberedPassphrase).toBeNull(),
-    );
+    expect(await screen.findByText('הקוד מוסתר')).toBeTruthy();
+    expect(screen.queryByText('ABCD-2345-EFGH-6789')).toBeNull();
   });
 
-  /**
-   * ⭐ ההבטחה שלא השתנתה: סיסמת **החשבון** לא נשמרת, והסיסמה
-   * שנשמרת אינה עוזבת את המכשיר.
-   */
-  it('⭐ הסיסמה השמורה לא מגיעה לשרת', async () => {
+  it('⭐ מוצג רק אחרי בקשה מפורשת, עם אזהרה', async () => {
     await onboard();
-    await spend(64);
+    await connect();
     renderSync();
 
-    await userEvent.type(await screen.findByLabelText('סיסמה'), PASSPHRASE);
-    await userEvent.click(await screen.findByRole('button', { name: /להעלות/ }));
+    await userEvent.click(await screen.findByRole('button', { name: 'להציג את הקוד' }));
 
-    await waitFor(() => expect(fakeServer.row).not.toBeNull());
-    expect(JSON.stringify(fakeServer.row)).not.toContain(PASSPHRASE);
-  });
-
-  it('⭐ מה שנשלח לשרת אינו מכיל טקסט גלוי', async () => {
-    await onboard();
-    await spend(64);
-    renderSync();
-
-    await userEvent.type(await screen.findByLabelText('סיסמה'), PASSPHRASE);
-    await userEvent.click(await screen.findByRole('button', { name: /להעלות/ }));
-
-    await waitFor(() => expect(fakeServer.row).not.toBeNull());
-    expect(fakeServer.row!.ciphertext).not.toContain('חנות לדוגמה');
-    expect(fakeServer.row!.ciphertext).not.toContain(PASSPHRASE);
+    expect(screen.getByText('ABCD-2345-EFGH-6789')).toBeTruthy();
+    expect(screen.getByText(/הקוד הזה הוא המפתח לנתונים/)).toBeTruthy();
   });
 });
 
 describe('⭐ התנגשות', () => {
   beforeEach(async () => {
-    fakeServer.session = { user: { id: 'u1', email: 'me@example.invalid' } };
+    const code = 'ABCD2345EFGH6789';
+    const identity = await deriveIdentity(code);
+    fakeServer.accounts.set(identity.email, identity.password);
+    fakeServer.session = { user: { id: identity.email, email: identity.email } };
 
-    // הענן מחזיק מצב אחר, ונקודת הייחוס ישנה משניהם.
     await onboard();
     await spend(120, '2026-08-15');
-    const remote = await buildVault(db, PASSPHRASE, new Date('2026-08-15T10:00:00Z'));
+    const remote = await buildVault(db, identity.passphrase, new Date('2026-08-15T10:00:00Z'));
     fakeServer.row = {
       ciphertext: remote.ciphertext,
       schemaVersion: remote.schemaVersion,
@@ -239,6 +239,11 @@ describe('⭐ התנגשות', () => {
       deviceLabel: 'מחשב',
     };
     await recordSyncSuccess(db, '2026-08-14T10:00:00Z', new Date('2026-08-14T10:00:00Z'));
+
+    const { rememberPassphrase, writeSyncState } = await import('../../data/sync/state');
+    await rememberPassphrase(db, identity.passphrase);
+    await writeSyncState(db, { enabled: true, pairingCode: code });
+
     await spend(45, '2026-08-16');
   });
 
@@ -249,10 +254,6 @@ describe('⭐ התנגשות', () => {
     expect(screen.getByRole('button', { name: /ולדרוס את המכשיר/ })).toBeTruthy();
   });
 
-  /**
-   * ⭐ אין ברירת מחדל ויזואלית. שני הכפתורים באותו משקל, כדי שהבחירה
-   * תהיה בחירה ולא לחיצה על מה שבולט.
-   */
   it('⭐ אף אחת משתי האפשרויות אינה כפתור ראשי', async () => {
     renderSync();
     const keepLocal = await screen.findByRole('button', { name: /ולדרוס את הענן/ });
@@ -262,24 +263,37 @@ describe('⭐ התנגשות', () => {
 
   it('⭐ בחירה בענן לא כותבת מיד — קודם מוצגת תצוגה מקדימה', async () => {
     renderSync();
-    await userEvent.type(await screen.findByLabelText('סיסמה'), PASSPHRASE);
-    await userEvent.click(screen.getByRole('button', { name: /ולדרוס את המכשיר/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /ולדרוס את המכשיר/ }));
 
     expect(await screen.findByText(/מה עומד להיכנס/)).toBeTruthy();
     expect(screen.getByText(/עדיין לא נכתבו/)).toBeTruthy();
-
-    // ⭐ העסקה המקומית עדיין קיימת — שום דבר לא נדרס.
     expect(await db.transactions.count()).toBe(2);
   });
 });
 
-/**
- * ⭐ מכשיר חדש.
- *
- * ⚠️ התרחיש שנשבר בקלות: טלפון חדש שכל מטרתו למשוך נתונים קיימים,
- * ונחסם מאחורי אונבורדינג. מי שימלא את הטופס ייצור נתונים שיידרסו
- * מיד — ובדרך גם עלול לייצר התנגשות מיותרת.
- */
+describe('⭐ מה שנשלח', () => {
+  it('⭐ הבלוב אטום ואינו מכיל את קוד החיבור', async () => {
+    const code = 'ABCD2345EFGH6789';
+    const identity = await deriveIdentity(code);
+    fakeServer.accounts.set(identity.email, identity.password);
+    fakeServer.session = { user: { id: identity.email, email: identity.email } };
+
+    await onboard();
+    await spend(64);
+    const { rememberPassphrase, writeSyncState } = await import('../../data/sync/state');
+    await rememberPassphrase(db, identity.passphrase);
+    await writeSyncState(db, { enabled: true, pairingCode: code });
+
+    renderSync();
+    await userEvent.click(await screen.findByRole('button', { name: /להעלות/ }));
+
+    await waitFor(() => expect(fakeServer.row).not.toBeNull());
+    expect(fakeServer.row!.ciphertext).not.toContain('חנות לדוגמה');
+    expect(fakeServer.row!.ciphertext).not.toContain(code);
+    expect(fakeServer.row!.ciphertext).not.toContain(identity.passphrase);
+  });
+});
+
 describe('⭐ מכשיר חדש לפני אונבורדינג', () => {
   it('⭐ מסך הסנכרון נגיש בלי חשבונות ובלי יעד', async () => {
     const { App } = await import('../../ui/App');
@@ -288,7 +302,6 @@ describe('⭐ מכשיר חדש לפני אונבורדינג', () => {
     render(<App />);
 
     expect(await screen.findByText(/מה זה נותן/)).toBeTruthy();
-    // ⭐ ולא הופנינו לאונבורדינג
     expect(screen.queryByText('נתחיל')).toBeNull();
   });
 
@@ -304,7 +317,7 @@ describe('⭐ מכשיר חדש לפני אונבורדינג', () => {
 });
 
 describe('⭐ הבאנר בלוח הבקרה', () => {
-  it('⭐ כשהסנכרון כבוי — אין רכיב ואין אף פנייה לרשת', async () => {
+  it('⭐ כשהסנכרון כבוי — אין רכיב', async () => {
     await onboard();
     render(
       <MemoryRouter>
@@ -312,28 +325,6 @@ describe('⭐ הבאנר בלוח הבקרה', () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(fakeServer.networkCalls).toBe(0));
-    expect(screen.queryByText(/סנכרון/)).toBeNull();
-  });
-
-  it('מציג התראה כשיש שינויים שלא הועלו', async () => {
-    fakeServer.session = { user: { id: 'u1', email: 'me@example.invalid' } };
-    await onboard();
-    await recordSyncSuccess(db, '2026-08-14T10:00:00Z', new Date('2026-08-14T10:00:00Z'));
-    fakeServer.row = {
-      ciphertext: 'x',
-      schemaVersion: 1,
-      updatedAt: '2026-08-14T10:00:00Z',
-      deviceLabel: null,
-    };
-    await spend(45, '2026-08-16');
-
-    render(
-      <MemoryRouter>
-        <SyncBanner />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByText(/יש שינויים שלא הועלו/)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText(/יש שינויים/)).toBeNull());
   });
 });

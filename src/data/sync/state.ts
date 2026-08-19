@@ -30,6 +30,7 @@ const EMPTY_STATE: SyncStateRow = {
   // ⚠️ ברירת המחדל היא כן. סנכרון שדורש הקלדה ידנית בכל פעם הוא
   // סנכרון שלא קורה, וזה מה שהוביל לאובדן נתונים.
   rememberEnabled: true,
+  pairingCode: null,
 };
 
 export async function readSyncState(db: FinanceDatabase): Promise<SyncStateRow> {

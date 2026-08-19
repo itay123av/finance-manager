@@ -141,6 +141,8 @@ describe('🔒 שדות אסורים — אין ולא יהיה מקום לפר�
     PASSPHRASE_EXEMPT,
     'src/data/sync/vault.ts',
     'src/data/sync/client.ts',
+    // סיסמת חשבון **נגזרת** מקוד החיבור. לא נבחרת, לא מוקלדת ולא נשמרת.
+    'src/data/sync/identity.ts',
   ];
 
   it('אף שדה אסור לא מופיע בקוד', () => {
@@ -200,6 +202,25 @@ describe('🔒 שדות אסורים — אין ולא יהיה מקום לפר�
     expect(client).not.toMatch(/(put|add|bulkPut|saveSettings)\([^)]*password/i);
     // השימוש המותר היחיד: העברה לשירות ההתחברות
     expect(client).toMatch(/signInWithPassword\(\{ email, password \}\)/);
+  });
+
+  /**
+   * ⭐ קוד החיבור הוא גם המפתח לנתונים.
+   *
+   * ⚠️ אם הקוד הגולמי יישלח לשרת — כסיסמה או כאימייל — השרת יחזיק
+   * את החומר שממנו נגזר מפתח ההצפנה, וההצפנה מקצה לקצה תהפוך
+   * לקישוט. הבדיקה מוודאת שהקוד עובר רק דרך הגזירה החד־כיוונית.
+   */
+  it('⭐ קוד החיבור אינו נשלח לשרת בשום מסלול', () => {
+    const pairing = stripComments(readText('src/data/sync/pairing.ts'));
+
+    // ההרשמה וההתחברות מקבלות את הערכים הנגזרים בלבד
+    expect(pairing).toMatch(/signUp\(identity\.email, identity\.password\)/);
+    expect(pairing).toMatch(/signIn\(identity\.email, identity\.password\)/);
+
+    // ⭐ והקוד עצמו לא מועבר לאף פונקציית רשת
+    expect(pairing).not.toMatch(/sign(Up|In)\([^)]*\bcode\b/);
+    expect(pairing).not.toMatch(/pushVault\([^)]*\bcode\b/);
   });
 
   /**
@@ -395,7 +416,12 @@ describe('🔒 הפרדה בין נתוני דוגמה לנתונים אמיתי
     // ומצהיר במפורש על מה שכן קורה
     expect(privacy).toContain('כבוי כברירת מחדל');
     expect(privacy).toContain('בלוב אחד מוצפן');
-    expect(privacy).toContain('הנתונים בענן אבודים');
+
+    // ⚠️ שתי האזהרות שאסור שייעלמו בעריכה: אין שחזור, והקוד שווה
+    // ערך לגישה מלאה. בלעדיהן המשתמש בוחר בלי לדעת מה הוא מסכן.
+    expect(privacy).toContain('אין שחזור');
+    expect(privacy).toContain('העותק בענן אבוד');
+    expect(privacy).toContain('שווה ערך לגישה מלאה');
   });
 });
 

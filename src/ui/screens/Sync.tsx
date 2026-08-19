@@ -3,17 +3,13 @@
  *
  * ⚠️ ארבע החלטות שמגדירות את המסך הזה:
  *
- * 1. **שתי סיסמאות, ובכוונה.** סיסמת החשבון נשלחת לשרת כדי להתחבר.
- *    סיסמת ההצפנה לא עוזבת את המכשיר לעולם. אילו היו זהות, מי ששולט
- *    בשרת היה שולט גם במפתח — וההצפנה הייתה קישוט.
+ * 1. **אין אימייל ואין סיסמאות.** המשתמש הוא היחיד עם גישה לנתונים
+ *    שלו, ולכן הרשמה במובן הרגיל רק עמדה בינו לבין מה שהוא רצה. מה
+ *    שהשרת באמת צריך הוא מזהה — ומזהה אפשר להגריל. קוד אחד נותן גם
+ *    את הזהות וגם את מפתח ההצפנה (`data/sync/identity.ts`).
  *
- * 2. **סיסמת ההצפנה נשמרת במכשיר, וזו החלטה שהתהפכה.**
- *    בגרסה הראשונה היא הוחזקה בזיכרון בלבד ונמחקה בכל רענון. זה נשמע
- *    מחמיר יותר, אבל הוא הגן מפני תוקף שכבר ניצח: העסקאות עצמן שמורות
- *    ב-IndexedDB בטקסט גלוי, ומי שמגיע אליהן לא צריך את הסיסמה. מה
- *    שההחמרה כן עשתה — היא חייבה הקלדה ידנית בכל סנכרון, ולכן נתונים
- *    לא נשמרו בענן ואבדו. ההצפנה מול **השרת** לא נפגעה: הוא עדיין
- *    מקבל בלוב אטום. מי שרוצה את ההתנהגות הישנה יכול לבטל את הזכירה.
+ * 2. **הקוד לעולם אינו נשלח לשרת.** נשלחים רק ערכים שנגזרו ממנו
+ *    חד־כיוונית, ולכן השרת לא יכול להגיע ממה שיש לו למפתח ההצפנה.
  *
  * 3. **דריסה לא קורית בלי מסך.** משיכה מציגה כמה רשומות נכנסות מול
  *    כמה יש, ומה ייווצר גיבוי. גם משיכה "בטוחה" עוברת דרך האישור הזה.
@@ -29,36 +25,28 @@ import { downloadFile } from '../download';
 import { Icon } from '../components/icons';
 import { useToast } from '../Toast';
 import { formatDateHe } from '../../core/dates';
+import { currentSession, deleteRemoteVault, SyncError } from '../../data/sync/client';
 import {
-  currentSession,
-  signIn,
-  signUp,
-  signOut,
-  deleteRemoteVault,
-  SyncError,
-} from '../../data/sync/client';
-import { applyPull, checkSync, preparePull, push, type PendingPull, type SyncStatus } from '../../data/sync/sync';
-import {
-  disableSync,
-  forgetPassphrase,
-  readSyncState,
-  rememberPassphrase,
-} from '../../data/sync/state';
-import { isValidSyncPassphrase, MIN_SYNC_PASSPHRASE_LENGTH, VaultError } from '../../data/sync/vault';
+  applyPull,
+  checkSync,
+  preparePull,
+  push,
+  type PendingPull,
+  type SyncStatus,
+} from '../../data/sync/sync';
+import { disableSync, readSyncState } from '../../data/sync/state';
+import { VaultError } from '../../data/sync/vault';
+import { SyncStart, PairingCodeCard } from './SyncStart';
 import {
   Banner,
   Button,
   Card,
   CardTitle,
   ConfirmDialog,
-  Field,
   LoadingState,
   Row,
   Sheet,
-  TextInput,
 } from '../components/ui';
-
-type AuthMode = 'signin' | 'signup';
 
 function messageOf(error: unknown): string {
   if (error instanceof VaultError || error instanceof SyncError) return error.message;
@@ -68,14 +56,15 @@ function messageOf(error: unknown): string {
 export function Sync() {
   const toast = useToast();
 
-  const [email, setEmail] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
   const [checking, setChecking] = useState(true);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /** ⚠️ נגזר מהקוד ולא מוקלד. המשתמש לא רואה אותו ולא צריך לראות. */
   const [passphrase, setPassphrase] = useState('');
-  const [remember, setRemember] = useState(true);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
 
   const [pending, setPending] = useState<PendingPull | null>(null);
   const [localCount, setLocalCount] = useState(0);
@@ -87,16 +76,17 @@ export function Sync() {
     setError(null);
     try {
       const session = await currentSession();
-      setEmail(session?.user.email ?? null);
+      const stored = await readSyncState(db);
       setLocalCount(await db.transactions.count());
 
-      // ⚠️ הסיסמה השמורה נטענת לשדה, כדי שהמסך ישקף את המצב האמיתי:
-      // סנכרון שרץ לבד ולא ממתין להקלדה.
-      const stored = await readSyncState(db);
-      if (stored.rememberedPassphrase) setPassphrase(stored.rememberedPassphrase);
-      setRemember(stored.rememberEnabled);
+      // ⚠️ "מחובר" = גם סשן וגם מפתח. סשן בלי מפתח אינו מצב שמישהו
+      // יכול לעשות איתו משהו — הוא רק ייראה תקין ויכשל בכל פעולה.
+      const ready = Boolean(session) && stored.rememberedPassphrase !== null;
+      setConnected(ready);
+      setPassphrase(stored.rememberedPassphrase ?? '');
+      setPairingCode(stored.pairingCode);
 
-      setStatus(session ? await checkSync(db) : null);
+      setStatus(ready ? await checkSync(db) : null);
     } catch (e) {
       setError(messageOf(e));
     } finally {
@@ -108,49 +98,26 @@ export function Sync() {
     void refresh();
   }, [refresh]);
 
-  /**
-   * ⚠️ שומר את הסיסמה ברגע שהיא תקינה — ולא רק אחרי לחיצה על "להעלות".
-   *
-   * אחרת נוצר המצב הגרוע ביותר: המשתמש מקליד סיסמה, רואה תיבה מסומנת
-   * שמבטיחה סנכרון אוטומטי, יוצא מהמסך בלי ללחוץ — ושום דבר לא נשמר.
-   */
-  useEffect(() => {
-    if (!email || !remember || !isValidSyncPassphrase(passphrase)) return;
-    void rememberPassphrase(db, passphrase);
-  }, [email, remember, passphrase]);
-
-  if (checking && !status && !email) return <LoadingState label="בודק מצב סנכרון…" />;
+  if (checking && !status && !connected) return <LoadingState label="בודק מצב סנכרון…" />;
 
   return (
     <Page title="סנכרון" width="reading">
       {error ? <Banner tone="caution" title="לא הצלחנו" body={error} /> : null}
 
-      {email === null ? (
-        <SignInCard
+      {!connected ? (
+        <SyncStart
           onDone={async () => {
             await refresh();
-            toast({ messageHe: 'התחברת. עכשיו בוחרים סיסמת הצפנה.' });
+            toast({ messageHe: 'הסנכרון פעיל. מכאן זה קורה לבד.' });
           }}
         />
       ) : (
         <>
           <StatusCard
-            email={email}
             status={status}
             localCount={localCount}
             busy={busy}
             onRefresh={refresh}
-          />
-
-          <PassphraseCard
-            value={passphrase}
-            onChange={setPassphrase}
-            remember={remember}
-            onRememberChange={async (next) => {
-              setRemember(next);
-              if (next && isValidSyncPassphrase(passphrase)) await rememberPassphrase(db, passphrase);
-              if (!next) await forgetPassphrase(db);
-            }}
           />
 
           <ActionsCard
@@ -164,22 +131,13 @@ export function Sync() {
             onRefresh={refresh}
           />
 
+          {pairingCode ? <PairingCodeCard code={pairingCode} /> : null}
+
           <Card>
-            <CardTitle>החשבון</CardTitle>
-            <Row label="מחובר כ־">{email}</Row>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                variant="ghost"
-                onClick={async () => {
-                  await signOut();
-                  setPassphrase('');
-                  await refresh();
-                }}
-              >
-                התנתקות
-              </Button>
+            <CardTitle>כיבוי</CardTitle>
+            <div className="flex flex-wrap gap-2">
               <Button variant="ghost" onClick={() => setConfirmDisable(true)}>
-                כיבוי סנכרון במכשיר
+                לנתק את המכשיר הזה
               </Button>
               <Button variant="ghost" onClick={() => setConfirmDeleteRemote(true)}>
                 מחיקת העותק בענן
@@ -219,14 +177,14 @@ export function Sync() {
 
       <ConfirmDialog
         open={confirmDisable}
-        title="לכבות סנכרון במכשיר הזה?"
-        body="הנתונים במכשיר נשארים כמו שהם, והעותק בענן נשאר גם הוא. רק הקשר ביניהם מתנתק."
-        confirmLabel="לכבות"
+        title="לנתק את המכשיר הזה מהסנכרון?"
+        body="הנתונים כאן נשארים, והעותק בענן נשאר גם הוא. כדי לחבר מחדש תצטרך את קוד החיבור — ודא שיש לך אותו."
+        confirmLabel="לנתק"
         onConfirm={async () => {
           await disableSync(db);
           setConfirmDisable(false);
           await refresh();
-          toast({ messageHe: 'הסנכרון כבוי. הנתונים לא השתנו.' });
+          toast({ messageHe: 'המכשיר נותק. הנתונים לא השתנו.' });
         }}
         onCancel={() => setConfirmDisable(false)}
       />
@@ -256,113 +214,6 @@ export function Sync() {
 }
 
 // ---------------------------------------------------------------------------
-// התחברות
-// ---------------------------------------------------------------------------
-
-function SignInCard({ onDone }: { onDone: () => Promise<void> }) {
-  const [mode, setMode] = useState<AuthMode>('signin');
-  const [emailValue, setEmailValue] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  async function submit() {
-    if (busy) return;
-    setBusy(true);
-    setProblem(null);
-    try {
-      if (mode === 'signin') {
-        await signIn(emailValue.trim(), password);
-        setPassword('');
-        await onDone();
-      } else {
-        const session = await signUp(emailValue.trim(), password);
-        setPassword('');
-        if (session) await onDone();
-        else setNotice('שלחנו מייל אימות. אחרי האישור אפשר להתחבר כאן.');
-      }
-    } catch (e) {
-      setProblem(messageOf(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <>
-      <Card>
-        <CardTitle>מה זה נותן</CardTitle>
-        <p className="text-sm leading-relaxed text-slate-600">
-          אותם נתונים בטלפון ובמחשב. מה שנשלח לענן הוא בלוב אחד מוצפן — לשרת אין את המפתח, ומי
-          שיסתכל שם יראה רצף תווים חסר משמעות.
-        </p>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          זה גם גיבוי: אם הטלפון ילך לאיבוד, הנתונים לא הולכים איתו.
-        </p>
-      </Card>
-
-      <Card>
-        <CardTitle>{mode === 'signin' ? 'התחברות' : 'חשבון חדש'}</CardTitle>
-
-        {notice ? <Banner title="כמעט" body={notice} /> : null}
-
-        <div className="space-y-3">
-          <Field label="אימייל">
-            {(id) => (
-              <TextInput
-                id={id}
-                type="email"
-                autoComplete="email"
-                inputMode="email"
-                value={emailValue}
-                onChange={(e) => setEmailValue(e.target.value)}
-              />
-            )}
-          </Field>
-
-          <Field
-            label="סיסמת החשבון"
-            hint="זו הסיסמה להתחברות בלבד. היא אינה מפתח ההצפנה, והיא לא תפתח את הנתונים."
-            {...(problem ? { error: problem } : {})}
-          >
-            {(id) => (
-              <TextInput
-                id={id}
-                type="password"
-                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            )}
-          </Field>
-
-          <Button
-            full
-            disabled={busy || emailValue.trim() === '' || password === ''}
-            onClick={() => void submit()}
-          >
-            {busy ? 'רגע…' : mode === 'signin' ? 'התחברות' : 'יצירת חשבון'}
-          </Button>
-
-          <Button
-            variant="ghost"
-            full
-            onClick={() => {
-              setMode(mode === 'signin' ? 'signup' : 'signin');
-              setProblem(null);
-              setNotice(null);
-            }}
-          >
-            {mode === 'signin' ? 'אין לי חשבון' : 'כבר יש לי חשבון'}
-          </Button>
-        </div>
-      </Card>
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // מצב
 // ---------------------------------------------------------------------------
 
@@ -377,19 +228,16 @@ const ACTION_LABEL: Record<string, { title: string; icon: 'cloud-check' | 'cloud
 };
 
 function StatusCard({
-  email,
   status,
   localCount,
   busy,
   onRefresh,
 }: {
-  email: string;
   status: SyncStatus | null;
   localCount: number;
   busy: string | null;
   onRefresh: () => Promise<void>;
 }) {
-  void email;
   const action = status?.decision.action ?? 'nothing';
   const label = ACTION_LABEL[action] ?? ACTION_LABEL.nothing!;
 
@@ -421,78 +269,6 @@ function StatusCard({
   );
 }
 
-function PassphraseCard({
-  value,
-  onChange,
-  remember,
-  onRememberChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  remember: boolean;
-  onRememberChange: (next: boolean) => void | Promise<void>;
-}) {
-  const valid = isValidSyncPassphrase(value);
-  return (
-    <Card>
-      <CardTitle>סיסמת ההצפנה</CardTitle>
-      <Field
-        label="סיסמה"
-        hint={`לפחות ${MIN_SYNC_PASSPHRASE_LENGTH} תווים. אותה סיסמה בכל המכשירים — אחרת הם לא יוכלו לקרוא זה את זה.`}
-      >
-        {(id) => (
-          <TextInput
-            id={id}
-            type="password"
-            autoComplete="off"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        )}
-      </Field>
-
-      <div className="mt-3 rounded-xl border border-caution-300 bg-caution-100/40 p-3">
-        <p className="text-sm font-semibold text-slate-800">אין שחזור לסיסמה הזו</p>
-        <p className="mt-1 text-sm leading-relaxed text-slate-600">
-          היא לא נשמרת בשום מקום — לא כאן ולא בשרת — ולכן גם אנחנו לא יכולים לאפס אותה. בלעדיה
-          הנתונים בענן אבודים. כדאי לשמור אותה במנהל סיסמאות.
-        </p>
-      </div>
-
-      {value !== '' && !valid ? (
-        <p className="mt-2 text-xs font-medium text-danger">
-          קצרה מדי. צריך {MIN_SYNC_PASSPHRASE_LENGTH} תווים לפחות.
-        </p>
-      ) : null}
-
-      {/*
-        ⚠️ מסומן כברירת מחדל, ובכוונה.
-
-        בלי הסיסמה השמורה אין סנכרון אוטומטי — כל שמירה לענן דורשת
-        להיכנס למסך הזה ולהקליד. זה בדיוק המצב שבו נתונים לא הגיעו
-        לענן ואבדו.
-      */}
-      <label className="mt-4 flex min-h-11 items-start gap-3">
-        <input
-          type="checkbox"
-          checked={remember}
-          onChange={(e) => void onRememberChange(e.target.checked)}
-          className="mt-1 size-5 shrink-0 rounded border-slate-300"
-        />
-        <span>
-          <span className="block text-sm font-semibold text-slate-800">
-            לזכור במכשיר הזה ולסנכרן אוטומטית
-          </span>
-          <span className="block text-xs leading-relaxed text-slate-500">
-            כל שינוי יישמר לענן לבד. השרת עדיין לא יכול לפתוח את הנתונים. בטל את הסימון במחשב
-            משותף — אז הסנכרון יחזור להיות ידני.
-          </span>
-        </span>
-      </label>
-    </Card>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // פעולות
 // ---------------------------------------------------------------------------
@@ -517,7 +293,9 @@ function ActionsCard({
   onRefresh: () => Promise<void>;
 }) {
   const toast = useToast();
-  const ready = isValidSyncPassphrase(passphrase) && !busy;
+  // ⚠️ המפתח נגזר מקוד החיבור, ולכן אם הגענו לכאן הוא קיים. אין
+  // יותר מצב של "מחובר אבל בלי מפתח" שדרש הקלדה.
+  const ready = passphrase !== '' && !busy;
   const action = status?.decision.action ?? 'nothing';
 
   async function doPush() {
