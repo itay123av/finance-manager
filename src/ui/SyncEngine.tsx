@@ -23,7 +23,7 @@ import { useEffect, useRef } from 'react';
 import { db } from '../data/db';
 import { useAppData } from './AppData';
 import { readSyncState } from '../data/sync/state';
-import { currentSession } from '../data/sync/client';
+import { ensureSession } from '../data/sync/pairing';
 import { applyPull, checkSync, preparePull, push } from '../data/sync/sync';
 
 /**
@@ -60,7 +60,10 @@ export function SyncEngine() {
         const state = await readSyncState(db);
         const passphrase = state.rememberedPassphrase;
         if (!state.enabled || !passphrase) return;
-        if (!(await currentSession())) return;
+
+        // ⚠️ מחדש את הסשן מהקוד השמור אם הוא פג. בלי זה פקיעה
+        // אחת מפסיקה את הסנכרון בשקט עד שהמשתמש יגלה ויתערב.
+        if (!(await ensureSession(db))) return;
 
         const status = await checkSync(db);
         const { action } = status.decision;

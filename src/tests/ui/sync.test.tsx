@@ -294,6 +294,45 @@ describe('⭐ מה שנשלח', () => {
   });
 });
 
+/**
+ * ⭐ פקיעת סשן.
+ *
+ * ⚠️ התרחיש שהמשתמש ביקש במפורש שלא יקרה: "בכל פעם שאני נכנס מהטלפון
+ * אצטרך להדביק את הקוד?". הקוד שמור במכשיר, ולכן חידוש הסשן הוא
+ * משהו שהאפליקציה יכולה לעשות לבד — ואם היא לא תעשה, הסנכרון ייפסק
+ * בשקט עד שהמשתמש יגלה ויתערב.
+ */
+describe('⭐ סשן שפג', () => {
+  it('⭐ מתחבר מחדש לבד מהקוד השמור, בלי לבקש כלום', async () => {
+    const code = 'ABCD2345EFGH6789';
+    const identity = await deriveIdentity(code);
+    fakeServer.accounts.set(identity.email, identity.password);
+
+    const { rememberPassphrase, writeSyncState } = await import('../../data/sync/state');
+    await onboard();
+    await rememberPassphrase(db, identity.passphrase);
+    await writeSyncState(db, { enabled: true, pairingCode: code });
+
+    // ⚠️ הסשן פג — בדיוק מה שקורה אחרי שהטלפון לא נפתח זמן מה.
+    fakeServer.session = null;
+
+    renderSync();
+
+    // ⭐ המסך לא מבקש קוד. הוא מתחבר לבד ומציג מצב סנכרון.
+    await waitFor(() => expect(fakeServer.session).not.toBeNull());
+    expect(screen.queryByLabelText('קוד חיבור')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'להפעיל סנכרון' })).toBeNull();
+  });
+
+  it('⭐ בלי קוד שמור באמת לא מחובר — ולא ממציא חשבון', async () => {
+    const { ensureSession } = await import('../../data/sync/pairing');
+    fakeServer.session = null;
+
+    expect(await ensureSession(db)).toBe(false);
+    expect(fakeServer.accounts.size).toBe(0);
+  });
+});
+
 describe('⭐ מכשיר חדש לפני אונבורדינג', () => {
   it('⭐ מסך הסנכרון נגיש בלי חשבונות ובלי יעד', async () => {
     const { App } = await import('../../ui/App');

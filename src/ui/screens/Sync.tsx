@@ -25,7 +25,8 @@ import { downloadFile } from '../download';
 import { Icon } from '../components/icons';
 import { useToast } from '../Toast';
 import { formatDateHe } from '../../core/dates';
-import { currentSession, deleteRemoteVault, SyncError } from '../../data/sync/client';
+import { deleteRemoteVault, SyncError } from '../../data/sync/client';
+import { ensureSession } from '../../data/sync/pairing';
 import {
   applyPull,
   checkSync,
@@ -75,13 +76,15 @@ export function Sync() {
     setChecking(true);
     setError(null);
     try {
-      const session = await currentSession();
+      // ⚠️ מנסה לחדש סשן שפג מהקוד השמור, לפני שמסיקים 'לא מחובר'.
+      // אחרת המסך היה מבקש להדביק קוד שכבר שמור במכשיר.
+      const session = await ensureSession(db);
       const stored = await readSyncState(db);
       setLocalCount(await db.transactions.count());
 
       // ⚠️ "מחובר" = גם סשן וגם מפתח. סשן בלי מפתח אינו מצב שמישהו
       // יכול לעשות איתו משהו — הוא רק ייראה תקין ויכשל בכל פעולה.
-      const ready = Boolean(session) && stored.rememberedPassphrase !== null;
+      const ready = session && stored.rememberedPassphrase !== null;
       setConnected(ready);
       setPassphrase(stored.rememberedPassphrase ?? '');
       setPairingCode(stored.pairingCode);

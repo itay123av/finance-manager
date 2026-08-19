@@ -16,9 +16,38 @@
 
 import { generatePairingCode, isValidPairingCode, normalizePairingCode } from '../../core/pairingCode';
 import { deriveIdentity } from './identity';
-import { signIn, signUp, SyncError } from './client';
-import { rememberPassphrase, writeSyncState } from './state';
+import { currentSession, signIn, signUp, SyncError } from './client';
+import { readSyncState, rememberPassphrase, writeSyncState } from './state';
 import type { FinanceDatabase } from '../db';
+
+/**
+ * מוודא שיש סשן פעיל, ומחדש אותו לבד מהקוד השמור.
+ *
+ * ⚠️ **בלי זה, פקיעת סשן נראית למשתמש כמו "האפליקציה שכחה אותי".**
+ *
+ * הקוד שמור במכשיר, כלומר כל מה שצריך כדי להתחבר מחדש כבר נמצא
+ * כאן. לבקש מהמשתמש להדביק אותו שוב זה לבקש ממנו לעשות ידנית
+ * משהו שהמכשיר יכול לעשות לבד — והתוצאה המעשית היא שהוא לא יעשה
+ * את זה, והסנכרון ייפסק בשקט.
+ *
+ * מחזיר `false` כשאין קוד שמור (כלומר המכשיר באמת לא מחובר), או
+ * כשההתחברות נכשלה — למשל בלי רשת. בשני המקרים אין שגיאה למשתמש:
+ * הנתונים המקומיים שלמים והאפליקציה עובדת.
+ */
+export async function ensureSession(db: FinanceDatabase): Promise<boolean> {
+  if (await currentSession()) return true;
+
+  const { pairingCode } = await readSyncState(db);
+  if (!pairingCode) return false;
+
+  try {
+    const identity = await deriveIdentity(pairingCode);
+    await signIn(identity.email, identity.password);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export class PairingError extends Error {
   constructor(
