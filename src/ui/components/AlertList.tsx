@@ -27,16 +27,27 @@ export function topAlerts(alerts: readonly Alert[], count: number): Alert[] {
 function AlertRow({ alert }: { alert: Alert }) {
   const warn = alert.severity === 'warn';
   return (
+    // ⚠️ האייקון והכותרת באותה שורה (`flex`). קודם האייקון היה inline
+    // בתוך ה-<p> בלי ריווח, ובמסך צר נשבר לשורה משלו מעל הכותרת.
     <li
-      className={`rounded-xl border p-3 ${
-        warn ? 'border-caution-300 bg-caution-100/50' : 'border-slate-200 bg-slate-50'
+      className={`flex gap-3 rounded-[1.25rem] border p-4 ${
+        warn ? 'border-caution-300/60 bg-caution-100/40' : 'border-slate-200/70 bg-surface elev-1'
       }`}
     >
-      <p className={`text-sm font-semibold ${warn ? 'text-caution-700' : 'text-slate-700'}`}>
-        <Icon name={warn ? 'alert-triangle' : 'info'} className="size-4" />
-        {alert.titleHe}
-      </p>
-      <p className="mt-1 text-sm leading-relaxed text-slate-600">{alert.bodyHe}</p>
+      <span
+        aria-hidden
+        className={`flex size-8 shrink-0 items-center justify-center rounded-[0.625rem] ${
+          warn ? 'bg-caution-100 text-caution-700' : 'bg-slate-100 text-slate-600'
+        }`}
+      >
+        <Icon name={warn ? 'alert-triangle' : 'info'} className="size-[1.125rem]" />
+      </span>
+      <div className="min-w-0">
+        <p className={`text-sm font-semibold ${warn ? 'text-caution-700' : 'text-slate-900'}`}>
+          {alert.titleHe}
+        </p>
+        <p className="mt-1 text-sm leading-relaxed text-slate-600">{alert.bodyHe}</p>
+      </div>
     </li>
   );
 }

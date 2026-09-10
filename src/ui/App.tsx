@@ -73,11 +73,13 @@ const UNDER_MORE = new Set([
 function BottomNav() {
   const { pathname } = useLocation();
   return (
+    // ⚠️ זכוכית חלבית ולא משטח אטום: התוכן שנגלל מתחת נראה במעומעם,
+    // והשורה מרגישה כחלק מהמסך ולא כפס שהודבק לתחתיתו.
     <nav
       aria-label="ניווט ראשי"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/70 bg-surface/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-150"
     >
-      <ul className="mx-auto flex max-w-md">
+      <ul className="mx-auto flex max-w-md px-1">
         {TABS.map((tab) => {
           const active = tab.to === '/more' ? UNDER_MORE.has(pathname) : pathname === tab.to;
           return (
@@ -85,11 +87,19 @@ function BottomNav() {
               <Link
                 to={tab.to}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium ${
-                  active ? 'text-accent' : 'text-slate-500'
+                className={`flex min-h-16 flex-col items-center justify-center gap-1 text-xs transition ${
+                  active ? 'font-semibold text-accent' : 'font-medium text-slate-500'
                 }`}
               >
-                <Icon name={tab.icon} />
+                {/* ⚠️ הלשונית הפעילה מסומנת בגלולה מאחורי האייקון ולא רק
+                    בצבע. צבע לבד לא מספיק כסימן — WCAG 1.4.1. */}
+                <span
+                  className={`flex h-7 w-14 items-center justify-center rounded-full transition ${
+                    active ? 'bg-brand-50' : ''
+                  }`}
+                >
+                  <Icon name={tab.icon} className="size-[1.375rem]" />
+                </span>
                 {tab.label}
               </Link>
             </li>
@@ -107,7 +117,7 @@ function AddButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       // הסימן ‎+‎ מוסתר מקוראי מסך, ולכן השם הנגיש נקבע במפורש.
       aria-label="הוספת עסקה"
-      className="fixed bottom-20 end-4 z-30 flex min-h-14 items-center gap-2 rounded-full bg-brand-700 px-5 text-sm font-bold text-white shadow-lg shadow-brand-900/20 hover:bg-brand-900"
+      className="fixed bottom-[5.5rem] end-4 z-30 flex min-h-14 items-center gap-2 rounded-full bg-brand-700 ps-4 pe-5 text-sm font-semibold text-white elev-fab transition hover:bg-brand-900 active:scale-[0.98]"
     >
       <Icon name="plus" />
       עסקה

@@ -1,7 +1,7 @@
 {
   "name": "finance-manager",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "description": "מערכת אישית לניהול כספים — מקומית לחלוטין, ללא שרת",
   "scripts": {
@@ -17,6 +17,8 @@
     "audit:privacy": "tsx scripts/phase7-privacy-scan.ts"
   },
   "dependencies": {
+    "@fontsource-variable/heebo": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
     "@supabase/supabase-js": "^2.112.3",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^4.4.0",

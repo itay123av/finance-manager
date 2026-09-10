@@ -4,6 +4,11 @@
  * מכוונים לטלפון ולעברית: מרווחי מגע נדיבים, `ms-`/`me-` במקום
  * `ml-`/`mr-` כדי ש-RTL יעבוד, וסכומים תמיד בתוך `.num` שמונע
  * מהמספר להתהפך בתוך משפט בעברית.
+ *
+ * ⚠️ **שפת העיצוב (v1.5)** — ראה את ההסבר המלא בראש `styles.css`.
+ * בקצרה: עומק במקום מסגרות, צבע רק כשיש לו משמעות, ומספרים כגיבור.
+ * כל שינוי ויזואלי ברכיב כאן משפיע על כל המסכים — ולכן כאן, ולא
+ * מסך-מסך.
  */
 
 import {
@@ -37,8 +42,11 @@ export function Money({
  * מתג "הסתר סכומים".
  *
  * ⚠️ נגיש מהמסך הראשי ולא רק מההגדרות: הרגע שבו צריך אותו הוא הרגע
- * שבו מישהו כבר עומד לידך. שלוש לחיצות דרך תפריט ההגדרות מגיעות
- * מאוחר מדי.
+ * שבו מישהו כבר עומד לידך.
+ *
+ * ⚠️ בטלפון רואים רק את האייקון, אבל הטקסט **נשאר** כשם הנגיש
+ * (`max-sm:sr-only`). שורת הכותרת צרה מדי לשם מלא לצד הלוגו והברכה,
+ * וקורא מסך עדיין שומע בדיוק מה הכפתור עושה.
  */
 export function DiscreetToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -46,17 +54,52 @@ export function DiscreetToggle({ on, onToggle }: { on: boolean; onToggle: () => 
       type="button"
       onClick={onToggle}
       aria-pressed={on}
-      className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-slate-500 hover:bg-slate-100"
+      className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-surface px-3 text-sm font-medium text-slate-600 elev-1 transition hover:text-slate-900"
     >
-      <Icon name={on ? 'eye-off' : 'eye'} className="size-4" />
-      {on ? 'להציג סכומים' : 'להסתיר סכומים'}
+      <Icon name={on ? 'eye-off' : 'eye'} className="size-[1.125rem]" />
+      <span className="max-sm:sr-only">{on ? 'להציג סכומים' : 'להסתיר סכומים'}</span>
     </button>
+  );
+}
+
+/**
+ * סמל המותג — שלושה עמודים עולים.
+ *
+ * ⚠️ לא ‎₪‎ ולא חץ מגמה. החץ כבר משמש את "החלטות" בניווט, ושימוש כפול
+ * באותו סמל גורם לשני הדברים להיראות כמו אותו דבר. עמודים שגדלים הם
+ * בדיוק מה שהאפליקציה עושה: חיסכון שנבנה.
+ */
+export function BrandMark({ className = 'size-9' }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`brand-mark flex shrink-0 items-center justify-center rounded-xl text-white ${className}`}
+    >
+      <svg viewBox="0 0 24 24" className="size-[58%]" fill="currentColor">
+        <rect x="3.5" y="13" width="4.5" height="7.5" rx="1.6" opacity="0.55" />
+        <rect x="9.75" y="8.5" width="4.5" height="12" rx="1.6" opacity="0.8" />
+        <rect x="16" y="3.5" width="4.5" height="17" rx="1.6" />
+      </svg>
+    </span>
   );
 }
 
 // ---------------------------------------------------------------------------
 // פריסה
 // ---------------------------------------------------------------------------
+
+type Tone = 'plain' | 'brand' | 'caution';
+
+/**
+ * ⚠️ `plain` הוא כמעט תמיד הנכון. `brand` ו-`caution` שמורים להודעות —
+ * "נשמר", "שים לב" — ולא לכרטיסי תוכן. כרטיס תוכן צבעוני היה בדיוק
+ * מה שהפך את לוח הבקרה לפסיפס של פסטל.
+ */
+const CARD_TONES: Record<Tone, string> = {
+  plain: 'border-slate-200/70 bg-surface elev-1',
+  brand: 'border-brand-100 bg-brand-50/70',
+  caution: 'border-caution-300/50 bg-caution-100/35',
+};
 
 export function Card({
   children,
@@ -65,15 +108,40 @@ export function Card({
 }: {
   children: ReactNode;
   className?: string;
-  tone?: 'plain' | 'brand' | 'caution';
+  tone?: Tone;
 }) {
-  const tones = {
-    plain: 'border-slate-200 bg-surface',
-    brand: 'border-brand-100 bg-brand-50',
-    caution: 'border-caution-100 bg-caution-100/40',
-  } as const;
   return (
-    <section className={`rounded-2xl border p-4 ${tones[tone]} ${className}`}>{children}</section>
+    <section className={`rounded-[1.25rem] border p-5 ${CARD_TONES[tone]} ${className}`}>
+      {children}
+    </section>
+  );
+}
+
+/** צבעי המדליון שמאחורי אייקון הכותרת. */
+const MEDALLION_TONES = {
+  neutral: 'bg-slate-100 text-slate-600',
+  brand: 'bg-brand-50 text-accent',
+  caution: 'bg-caution-100 text-caution-700',
+} as const;
+
+export type MedallionTone = keyof typeof MEDALLION_TONES;
+
+export function Medallion({
+  icon,
+  tone = 'neutral',
+  className = 'size-8',
+}: {
+  icon: IconName;
+  tone?: MedallionTone;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={`flex shrink-0 items-center justify-center rounded-[0.625rem] ${MEDALLION_TONES[tone]} ${className}`}
+    >
+      <Icon name={icon} className="size-[1.125rem]" />
+    </span>
   );
 }
 
@@ -81,10 +149,12 @@ export function CardTitle({
   children,
   hint,
   icon,
+  iconTone = 'neutral',
 }: {
   children: ReactNode;
   hint?: string;
   icon?: IconName;
+  iconTone?: MedallionTone;
 }) {
   return (
     // slate-600 ולא slate-500: הכותרת מופיעה גם על רקע מגוון (brand-50,
@@ -92,8 +162,8 @@ export function CardTitle({
     //
     // ⚠️ `items-center` ולא `items-baseline`: לאייקון אין קו בסיס, ויישור
     // לפיו היה מפיל אותו כמה פיקסלים מתחת לטקסט.
-    <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600">
-      {icon ? <Icon name={icon} className="size-4" /> : null}
+    <h2 className="mb-4 flex items-center gap-2.5 text-sm font-semibold text-slate-600">
+      {icon ? <Medallion icon={icon} tone={iconTone} /> : null}
       {children}
       {hint ? <InfoTip text={hint} /> : null}
     </h2>
@@ -104,8 +174,10 @@ export function CardTitle({
  * כרטיס KPI — מספר אחד גדול עם תווית.
  *
  * ⚠️ קיים רק בפריסת הדסקטופ. בטלפון ארבעה מספרים בשורה היו יורדים
- * לרוחב של 80 פיקסלים כל אחד, ו-‎₪4,400‎ היה נשבר לשתי שורות. שם
- * הכרטיסים המלאים עושים את העבודה טוב יותר.
+ * לרוחב של 80 פיקסלים כל אחד, ו-‎₪4,400‎ היה נשבר לשתי שורות.
+ *
+ * ⚠️ `hero` — משטח כהה עם טקסט לבן, לכרטיס אחד בלבד בשורה: היתרה.
+ * שני גיבורים באותה שורה הם אפס גיבורים.
  */
 export function KpiCard({
   label,
@@ -116,22 +188,36 @@ export function KpiCard({
   label: string;
   value: ReactNode;
   sub?: ReactNode;
-  tone?: 'plain' | 'brand' | 'caution';
+  tone?: Tone | 'hero';
 }) {
-  const tones = {
-    plain: 'border-slate-200 bg-surface',
-    brand: 'border-brand-100 bg-brand-50',
-    caution: 'border-caution-100 bg-caution-100/40',
-  } as const;
+  const hero = tone === 'hero';
   return (
-    <section className={`rounded-2xl border p-5 ${tones[tone]}`}>
-      <p className="text-sm font-medium text-slate-600">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-slate-900 2xl:text-4xl">{value}</p>
-      {sub ? <p className="mt-2 text-sm text-slate-600">{sub}</p> : null}
+    <section
+      className={`rounded-[1.25rem] border p-5 2xl:p-6 ${
+        hero ? 'hero-surface border-white/10 text-white' : CARD_TONES[tone]
+      }`}
+    >
+      <p className={`text-sm font-medium ${hero ? 'text-white/85' : 'text-slate-600'}`}>{label}</p>
+      <p
+        className={`num-display mt-3 text-[2rem] leading-none font-semibold 2xl:text-[2.5rem] ${
+          hero ? 'text-white' : 'text-slate-900'
+        }`}
+      >
+        {value}
+      </p>
+      {sub ? (
+        <p className={`mt-3 text-sm ${hero ? 'text-white/85' : 'text-slate-600'}`}>{sub}</p>
+      ) : null}
     </section>
   );
 }
 
+/**
+ * שורת תווית–ערך.
+ *
+ * ⚠️ הערך כהה מהתווית. כשהשניים באותו אפור העין לא יודעת על מה לנחות,
+ * וכל שורה נקראת כמו משפט אחד ארוך.
+ */
 export function Row({
   label,
   children,
@@ -142,13 +228,13 @@ export function Row({
   strong?: boolean;
 }) {
   return (
-    <div
-      className={`flex items-baseline justify-between gap-3 py-1.5 ${
-        strong ? 'font-semibold text-slate-900' : 'text-slate-600'
-      }`}
-    >
-      <span className="text-sm">{label}</span>
-      <span className="text-sm">{children}</span>
+    <div className="flex items-baseline justify-between gap-3 py-2">
+      <span className={`text-sm ${strong ? 'font-semibold text-slate-900' : 'text-slate-600'}`}>
+        {label}
+      </span>
+      <span className={`text-sm text-slate-900 ${strong ? 'font-semibold' : 'font-medium'}`}>
+        {children}
+      </span>
     </div>
   );
 }
@@ -160,21 +246,24 @@ export function Row({
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-700 text-white hover:bg-brand-900 disabled:bg-slate-300',
-  secondary: 'border border-slate-300 bg-surface text-slate-800 hover:bg-slate-50',
+  primary:
+    'bg-brand-700 text-white elev-btn hover:bg-brand-900 active:translate-y-px disabled:bg-slate-300 disabled:shadow-none',
+  secondary:
+    'border border-slate-200 bg-surface text-slate-800 elev-1 hover:border-slate-300 hover:bg-slate-50',
   ghost: 'text-accent hover:bg-brand-50',
-  danger: 'bg-alertred-600 text-white hover:brightness-90',
+  // ⚠️ היה בלי מצב מושבת, ולכן "למחוק הכל" נראה לחיץ גם לפני שהוקלדה
+  // מילת האישור.
+  danger: 'bg-alertred-600 text-white elev-btn hover:brightness-95 disabled:opacity-50',
 };
 
 /**
  * המחלקות של כפתור, בלי הכפתור.
  *
  * ⚠️ קיים כדי שקישור שנראה כמו כפתור יישאר `<a>`. `<button>` בתוך
- * `<a>` הוא HTML לא חוקי, וקורא מסך מכריז עליו כשני פקדים מקוננים —
- * שניהם מבלבלים, ואף אחד מהם לא נשמע כמו "מעבר למסך".
+ * `<a>` הוא HTML לא חוקי, וקורא מסך מכריז עליו כשני פקדים מקוננים.
  */
 export function buttonClass(variant: ButtonVariant = 'primary', full = false): string {
-  return `inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition ${
+  return `inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition duration-150 ease-out disabled:cursor-not-allowed ${
     BUTTON_VARIANTS[variant]
   } ${full ? 'w-full' : ''}`;
 }
@@ -197,6 +286,16 @@ export function Button({
 // טפסים
 // ---------------------------------------------------------------------------
 
+/**
+ * הבסיס של כל שדה קלט.
+ *
+ * ⚠️ מצב המיקוד הוא גבול ירוק כהה **והילה**, לא רק הילה. הילה בהירה
+ * לבדה נותנת פחות מ-3:1 מול לבן — מתחת לסף של מחוון מיקוד. הגבול
+ * ב-brand-700 נותן 6:1, וההילה רק מרככת.
+ */
+const FIELD_BASE =
+  'w-full rounded-xl border border-slate-200 bg-surface text-base text-slate-900 elev-1 transition duration-150 hover:border-slate-300 focus:border-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-500/20';
+
 export function Field({
   label,
   hint,
@@ -210,12 +309,12 @@ export function Field({
 }) {
   const id = useId();
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <label htmlFor={id} className="block text-sm font-medium text-slate-700">
         {label}
       </label>
       {children(id)}
-      {hint && !error ? <p className="text-xs text-slate-500">{hint}</p> : null}
+      {hint && !error ? <p className="text-xs leading-relaxed text-slate-500">{hint}</p> : null}
       {error ? (
         <p role="alert" className="text-xs font-medium text-danger">
           {error}
@@ -229,9 +328,7 @@ export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`min-h-11 w-full rounded-xl border border-slate-300 bg-surface px-3 text-base text-slate-900 placeholder:text-slate-500 ${
-        props.className ?? ''
-      }`}
+      className={`min-h-12 px-3.5 placeholder:text-slate-500 ${FIELD_BASE} ${props.className ?? ''}`}
     />
   );
 }
@@ -246,7 +343,7 @@ export function AmountInput(props: InputHTMLAttributes<HTMLInputElement>) {
       dir="ltr"
       placeholder="0"
       {...props}
-      className={`text-start text-2xl font-bold tabular-nums ${props.className ?? ''}`}
+      className={`text-start text-2xl font-semibold tracking-tight tabular-nums ${props.className ?? ''}`}
     />
   );
 }
@@ -254,10 +351,7 @@ export function AmountInput(props: InputHTMLAttributes<HTMLInputElement>) {
 export function Select(props: InputHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
   const { children, className, ...rest } = props;
   return (
-    <select
-      {...(rest as object)}
-      className={`min-h-11 w-full rounded-xl border border-slate-300 bg-surface px-3 text-base text-slate-900 ${className ?? ''}`}
-    >
+    <select {...(rest as object)} className={`min-h-12 px-3.5 ${FIELD_BASE} ${className ?? ''}`}>
       {children}
     </select>
   );
@@ -286,10 +380,10 @@ export function ChoiceGroup<T extends string | number>({
             role="radio"
             aria-checked={selected}
             onClick={() => onChange(option.value)}
-            className={`min-h-11 flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+            className={`min-h-12 flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition duration-150 ${
               selected
-                ? 'border-brand-700 bg-brand-50 text-accent-strong'
-                : 'border-slate-300 bg-surface text-slate-700'
+                ? 'border-brand-700 bg-brand-50 text-accent-strong ring-1 ring-brand-700'
+                : 'border-slate-200 bg-surface text-slate-700 elev-1 hover:border-slate-300'
             }`}
           >
             <span className="num">{option.label}</span>
@@ -322,13 +416,16 @@ export function ProgressBar({
   } as const;
   return (
     <div
-      className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200"
+      className="h-2 w-full overflow-hidden rounded-full bg-slate-200/80"
       role="progressbar"
       aria-valuenow={Math.round(clamped)}
       aria-valuemin={0}
       aria-valuemax={100}
     >
-      <div className={`h-full rounded-full ${tones[tone]}`} style={{ width: `${clamped}%` }} />
+      <div
+        className={`h-full rounded-full transition-[width] duration-700 ease-out ${tones[tone]}`}
+        style={{ width: `${clamped}%` }}
+      />
     </div>
   );
 }
@@ -339,8 +436,7 @@ export function InfoTip({ text }: { text: string }) {
     <span className="relative inline-flex">
       {/*
         ⚠️ העיגול נראה 24 פיקסלים, אבל אזור הלחיצה שלו 44 — דרך
-        `after` שקוף שמתפרש מסביבו. עיגול קטן בתוך כותרת הוא מטרה
-        שקשה לפגוע בה באגודל, ובלי ההרחבה הזו הכפתור נמצא מתחת
+        `after` שקוף שמתפרש מסביבו. בלי ההרחבה הזו הכפתור נמצא מתחת
         למינימום של WCAG 2.2.
       */}
       <button
@@ -348,12 +444,12 @@ export function InfoTip({ text }: { text: string }) {
         onClick={() => setOpen((v) => !v)}
         aria-label="הסבר"
         aria-expanded={open}
-        className="relative flex size-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 after:absolute after:-inset-2.5 after:content-['']"
+        className="relative flex size-6 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 after:absolute after:-inset-2.5 after:content-['']"
       >
         <Icon name="info" className="size-3.5" />
       </button>
       {open ? (
-        <span className="absolute top-6 z-20 w-56 rounded-xl bg-inverse p-3 text-xs font-normal leading-relaxed text-on-inverse shadow-lg">
+        <span className="absolute top-8 z-20 w-60 rounded-xl bg-inverse p-3 text-xs leading-relaxed font-normal text-on-inverse elev-3 animate-fade-in">
           {text}
         </span>
       ) : null}
@@ -363,17 +459,25 @@ export function InfoTip({ text }: { text: string }) {
 
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center">
-      <p className="font-semibold text-slate-700">{title}</p>
-      <p className="mt-1 text-sm text-slate-500">{body}</p>
-      {action ? <div className="mt-4">{action}</div> : null}
+    <div className="rounded-[1.25rem] border border-dashed border-slate-300 bg-surface/60 px-6 py-10 text-center">
+      <p className="text-base font-semibold text-slate-800">{title}</p>
+      <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-slate-600">{body}</p>
+      {action ? <div className="mt-5">{action}</div> : null}
     </div>
   );
 }
 
 export function LoadingState({ label = 'טוען…' }: { label?: string }) {
   return (
-    <div className="p-8 text-center text-sm text-slate-500" role="status" aria-live="polite">
+    <div
+      className="flex items-center justify-center gap-3 p-10 text-sm text-slate-500"
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        aria-hidden
+        className="size-4 animate-spin rounded-full border-2 border-slate-200 border-t-brand-500"
+      />
       {label}
     </div>
   );
@@ -387,9 +491,13 @@ export function LoadingState({ label = 'טוען…' }: { label?: string }) {
  */
 export function ProgressState({ label, pct }: { label: string; pct: number | null }) {
   return (
-    <div role="status" aria-live="polite" className="rounded-2xl border border-slate-200 p-5">
+    <div
+      role="status"
+      aria-live="polite"
+      className="rounded-[1.25rem] border border-slate-200/70 bg-surface p-5 elev-1"
+    >
       <p className="text-sm font-medium text-slate-700">{label}</p>
-      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200/80">
         <div
           className={`h-full rounded-full bg-brand-500 ${pct === null ? 'w-1/3 animate-pulse' : ''}`}
           style={pct === null ? undefined : { width: `${Math.max(0, Math.min(100, pct))}%` }}
@@ -427,14 +535,14 @@ export function Banner({
   tone?: 'info' | 'caution';
 }) {
   const tones = {
-    info: 'border-slate-200 bg-slate-50',
-    caution: 'border-caution-100 bg-caution-100/40',
+    info: 'border-slate-200/70 bg-surface elev-1',
+    caution: 'border-caution-300/60 bg-caution-100/40',
   } as const;
   return (
-    <section className={`rounded-2xl border p-4 ${tones[tone]}`} aria-label={title}>
-      <p className="text-sm font-semibold text-slate-800">{title}</p>
-      {body ? <p className="mt-1 text-sm leading-relaxed text-slate-600">{body}</p> : null}
-      <div className="mt-3 flex flex-wrap gap-2">
+    <section className={`rounded-[1.25rem] border p-5 ${tones[tone]}`} aria-label={title}>
+      <p className="text-sm font-semibold text-slate-900">{title}</p>
+      {body ? <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{body}</p> : null}
+      <div className="mt-4 flex flex-wrap gap-2">
         {action}
         {onDismiss ? (
           <Button variant="ghost" onClick={onDismiss}>
@@ -448,7 +556,10 @@ export function Banner({
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div role="alert" className="rounded-2xl border border-alertred-100 bg-alertred-100/40 p-5 text-center">
+    <div
+      role="alert"
+      className="rounded-[1.25rem] border border-alertred-100 bg-alertred-100/40 p-5 text-center"
+    >
       <p className="text-sm font-medium text-slate-800">{message}</p>
       {onRetry ? (
         <Button variant="secondary" className="mt-3" onClick={onRetry}>
@@ -485,7 +596,6 @@ export type SheetWidth = 'default' | 'wide';
  *
  * טופס ברוחב 1200 פיקסלים גורם לעין לנוע מקצה לקצה בין תווית לשדה,
  * ו"רחב יותר" מפסיק להיות "נוח יותר" הרבה לפני שנגמר המקום.
- * `wide` שמור לתוכן שבאמת צריך רוחב — סימולציה עם השוואת תרחישים.
  */
 const SHEET_WIDTHS: Record<SheetWidth, string> = {
   default: 'max-w-md sm:max-w-lg lg:max-w-2xl',
@@ -558,26 +668,29 @@ export function Sheet({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-backdrop sm:items-center">
+    <div className="fixed inset-0 z-40 flex animate-fade-in items-end justify-center bg-backdrop backdrop-blur-[3px] sm:items-center sm:p-4">
       <button type="button" aria-label="סגירה" className="absolute inset-0" onClick={onClose} />
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative z-10 max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-3xl lg:p-6 ${SHEET_WIDTHS[width]}`}
+        className={`relative z-10 max-h-[90dvh] w-full animate-sheet-in overflow-y-auto rounded-t-[1.75rem] bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] elev-3 sm:rounded-[1.5rem] lg:p-7 ${SHEET_WIDTHS[width]}`}
       >
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 id={titleId} className="text-lg font-bold text-slate-900">
+        {/* ידית גרירה — סימן מוכר שזה גיליון שנפתח מלמטה. בדסקטופ אין
+            "למטה", ולכן היא נעלמת. */}
+        <div aria-hidden className="mx-auto -mt-1 mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden" />
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <h2 id={titleId} className="text-lg font-semibold tracking-tight text-slate-900">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="סגירה"
-            className="flex size-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900"
           >
-            <Icon name="close" />
+            <Icon name="close" className="size-5" />
           </button>
         </div>
         {children}

@@ -17,6 +17,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { APP_VERSION } from '../../version';
 import { Icon, type IconName } from './icons';
+import { BrandMark, buttonClass } from './ui';
 
 interface NavItem {
   to: string;
@@ -77,21 +78,15 @@ export function Sidebar({ onAddTransaction }: { onAddTransaction: () => void }) 
   return (
     <nav
       aria-label="ניווט ראשי"
-      className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-y-auto border-e border-slate-200 bg-surface px-4 py-6 lg:flex"
+      className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-y-auto border-e border-slate-200/70 bg-surface px-4 py-6 lg:flex 2xl:w-72"
     >
-      <div className="mb-6 flex items-center gap-2 px-2">
-        <span aria-hidden className="text-2xl">
-          ₪
-        </span>
-        <span className="text-lg font-bold text-slate-900">ניהול כספים</span>
+      <div className="mb-7 flex items-center gap-3 px-2">
+        <BrandMark />
+        <span className="text-base font-bold tracking-tight text-slate-900">ניהול כספים</span>
       </div>
 
-      <button
-        type="button"
-        onClick={onAddTransaction}
-        className="mb-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-700 px-4 text-sm font-bold text-white transition hover:bg-brand-900"
-      >
-        <Icon name="plus" />
+      <button type="button" onClick={onAddTransaction} className={`mb-7 ${buttonClass('primary', true)}`}>
+        <Icon name="plus" className="size-[1.125rem]" />
         עסקה חדשה
       </button>
 
@@ -99,25 +94,27 @@ export function Sidebar({ onAddTransaction }: { onAddTransaction: () => void }) 
         {SIDEBAR_GROUPS.map((group, index) => (
           <div key={group.title ?? `group-${index}`}>
             {group.title ? (
-              <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {group.title}
-              </p>
+              <p className="mb-1.5 px-3 text-xs font-semibold text-slate-500">{group.title}</p>
             ) : null}
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const active = pathname === item.to;
                 return (
                   <li key={item.to}>
+                    {/* ⚠️ הפריט הפעיל מסומן גם ברקע וגם במשקל — לא בצבע בלבד. */}
                     <Link
                       to={item.to}
                       aria-current={active ? 'page' : undefined}
-                      className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition ${
+                      className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm transition ${
                         active
                           ? 'bg-brand-50 font-semibold text-accent-strong'
-                          : 'text-slate-700 hover:bg-slate-100'
+                          : 'font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
-                      <Icon name={item.icon} />
+                      <Icon
+                        name={item.icon}
+                        className={`size-5 ${active ? 'text-accent' : 'text-slate-500'}`}
+                      />
                       {item.label}
                     </Link>
                   </li>

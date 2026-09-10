@@ -37,6 +37,12 @@ export interface PageProps {
   showTitle?: boolean;
   /** פעולות שמופיעות לצד הכותרת. */
   actions?: ReactNode;
+  /**
+   * תוכן בתחילת שורת הכותרת, כשהכותרת עצמה מוסתרת.
+   * לוח הבקרה משתמש בזה לברכה ולתאריך — הוא לא צריך את המילים "לוח
+   * הבקרה" כדי שיבינו איפה הם, אבל הוא כן צריך משהו שיעגן את ראש המסך.
+   */
+  leading?: ReactNode;
   width?: PageWidth;
   children: ReactNode;
 }
@@ -45,30 +51,36 @@ export function Page({
   title,
   showTitle = true,
   actions,
+  leading,
   width = 'wide',
   children,
 }: PageProps) {
   return (
     <main
-      className={`mx-auto w-full space-y-4 p-4 pb-28 md:pb-10 lg:space-y-6 lg:px-8 lg:pt-6 ${WIDTHS[width]}`}
+      className={`mx-auto w-full space-y-4 px-4 pt-4 pb-32 md:pb-10 lg:space-y-6 lg:px-8 lg:pt-8 ${WIDTHS[width]}`}
     >
       {/*
-        ⚠️ `justify-end` כשאין כותרת נראית.
+        ⚠️ `justify-end` כשאין שום דבר בתחילת השורה.
 
         `sr-only` ממקם את הכותרת מחוץ לזרימה, ולכן `justify-between`
         היה משאיר את הפעולות דבוקות לתחילת השורה — הפוך ממה שהיה
         בלוח הבקרה בגרסה 1.0, שבו מתג ההסתרה יושב בקצה.
       */}
       <div
-        className={`flex items-center gap-4 ${showTitle ? 'justify-between' : 'justify-end'}`}
+        className={`flex min-h-11 items-center gap-4 ${
+          showTitle || leading ? 'justify-between' : 'justify-end'
+        }`}
       >
         <h1
           className={
-            showTitle ? 'pt-2 text-2xl font-bold text-slate-900 lg:pt-0 lg:text-3xl' : 'sr-only'
+            showTitle
+              ? 'pt-1 text-[1.75rem] leading-tight font-bold tracking-tight text-slate-900 lg:pt-0 lg:text-[2rem]'
+              : 'sr-only'
           }
         >
           {title}
         </h1>
+        {!showTitle ? leading : null}
         {actions}
       </div>
       {children}

@@ -15,10 +15,10 @@
  * מובייל לדסקטופ הוא **הסידור בלבד** — ולכן אין סיכוי ששתי הפריסות
  * יציגו מספרים שונים.
  *
- * למה לא סידור אחד עם `grid` רספונסיבי: סדר הכרטיסים במובייל נבחר
- * בקפידה (התראות מיד אחרי "בטוח להוציא", לפני היעד), וגריד שמעביר
- * כרטיסים לעמודה צדדית בדסקטופ היה משנה גם את סדר המובייל. פיצול
- * מפורש שומר על שניהם.
+ * ⚠️ **היררכיה ויזואלית (v1.5).** היתרה היא המשטח הכהה היחיד במסך —
+ * כרטיס "ארנק". "בטוח להוציא" מקבל את המספר הירוק הגדול ואת הצל העמוק
+ * ביותר מבין הכרטיסים הלבנים. כל השאר שקט יותר. קודם כל הכרטיסים היו
+ * באותו משקל, והעין לא ידעה מאיפה להתחיל.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -34,16 +34,17 @@ import { StorageBanner } from '../components/StorageBanner';
 import { Page, Stack } from '../components/layout';
 import { confidenceLabelHe } from '../../core/confidence';
 import { formatDateHe, formatMonthHe } from '../../core/dates';
-import { Icon } from '../components/icons';
+import { Icon, type IconName } from '../components/icons';
 import {
+  BrandMark,
   Button,
-  buttonClass,
   Card,
   CardTitle,
   DiscreetToggle,
   EmptyState,
   KpiCard,
   LoadingState,
+  Medallion,
   Money,
   ProgressBar,
   Row,
@@ -52,6 +53,51 @@ import {
 
 /** כמה התראות במסך הראשי. השאר במסך התובנות. */
 const DASHBOARD_ALERTS = 1;
+
+/**
+ * ברכה לפי שעה.
+ *
+ * ⚠️ נגזרת משעון המכשיר, ובכוונה — זה טקסט תצוגה ולא חישוב. שום מספר
+ * פיננסי לא תלוי בו, ולכן אין כאן את הבעיה של שעון מקומי מול שעון שרת.
+ */
+function greetingFor(hour: number): string {
+  if (hour >= 5 && hour < 12) return 'בוקר טוב';
+  if (hour >= 12 && hour < 17) return 'צהריים טובים';
+  if (hour >= 17 && hour < 22) return 'ערב טוב';
+  return 'לילה טוב';
+}
+
+const TODAY_FORMAT = new Intl.DateTimeFormat('he-IL', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
+
+/**
+ * אריח פעולה מהירה.
+ *
+ * ⚠️ אריח אחד בלבד מלא בצבע — הוספת עסקה, הפעולה שעושים הכי הרבה.
+ * ארבעה אריחים ירוקים היו שקולים לאפס.
+ */
+function tileClass(primary: boolean): string {
+  return `flex min-h-[5.5rem] flex-col items-start justify-between gap-3 rounded-2xl border p-3.5 text-start text-sm font-semibold transition duration-150 active:scale-[0.98] ${
+    primary
+      ? 'border-transparent bg-brand-700 text-white elev-btn hover:bg-brand-900'
+      : 'border-slate-200/70 bg-surface text-slate-800 elev-1 hover:border-slate-300 hover:bg-slate-50'
+  }`;
+}
+
+function TileIcon({ name, primary = false }: { name: IconName; primary?: boolean }) {
+  if (!primary) return <Medallion icon={name} tone="brand" />;
+  return (
+    <span
+      aria-hidden
+      className="flex size-8 items-center justify-center rounded-[0.625rem] bg-white/15"
+    >
+      <Icon name={name} className="size-[1.125rem]" />
+    </span>
+  );
+}
 
 export function Dashboard({
   onAddTransaction,
@@ -83,60 +129,104 @@ export function Dashboard({
   const cash = balance.byAccount.find((a) => a.type === 'cash');
   const hasTransactions = balance.breakdown.countedTransactions > 0;
   const moreAlerts = alerts.length - DASHBOARD_ALERTS;
+  const now = new Date();
+
+  // ── ראש המסך ────────────────────────────────────────────────────
+
+  /**
+   * ⚠️ הלוגו מופיע רק בטלפון. בדסקטופ הוא כבר בראש סרגל הצד, ושני
+   * לוגואים באותו מסך הם רעש.
+   */
+  const header = (
+    <div className="flex items-center gap-3">
+      <BrandMark className="size-10 lg:hidden" />
+      <div className="leading-tight">
+        <p className="text-xs font-medium text-slate-600">{TODAY_FORMAT.format(now)}</p>
+        <p className="mt-0.5 text-lg font-semibold tracking-tight text-slate-900 lg:text-2xl">
+          {greetingFor(now.getHours())}
+        </p>
+      </div>
+    </div>
+  );
 
   // ── הכרטיסים ────────────────────────────────────────────────────
 
+  /**
+   * ⚠️ המשטח הכהה היחיד במסך. הטקסט עליו לבן, והמשני לבן ב-85%
+   * שקיפות. נמדד: 70% נתן 4.1:1 בנקודה הבהירה ביותר של ההילה — מתחת לסף — ולכן 85%.
+   */
   const balanceCard = (
-    <Card tone="brand">
-      <p className="text-sm text-accent">יש לך</p>
-      <p className="mt-1 text-4xl font-bold text-accent-strong">
+    <section
+      aria-label="היתרה"
+      className="hero-surface relative overflow-hidden rounded-[1.5rem] border border-white/10 p-6 text-white"
+    >
+      <p className="text-sm font-medium text-white/85">יש לך</p>
+      <p className="num-display mt-3 text-[2.75rem] leading-none font-semibold">
         <Money agorot={balance.totalAgorot} />
       </p>
-      <p className="mt-2 text-sm text-accent">
-        בנק <Money agorot={bank?.balanceAgorot ?? 0} className="font-semibold" />
-        <span aria-hidden className="mx-2 text-brand-500">
-          ·
-        </span>
-        מזומן <Money agorot={cash?.balanceAgorot ?? 0} className="font-semibold" />
-      </p>
-    </Card>
+      <div className="mt-6 flex items-center gap-5">
+        <div>
+          <p className="text-xs text-white/85">בנק</p>
+          <p className="mt-1 text-base font-semibold">
+            <Money agorot={bank?.balanceAgorot ?? 0} />
+          </p>
+        </div>
+        <span aria-hidden className="h-9 w-px bg-white/15" />
+        <div>
+          <p className="text-xs text-white/85">מזומן</p>
+          <p className="mt-1 text-base font-semibold">
+            <Money agorot={cash?.balanceAgorot ?? 0} />
+          </p>
+        </div>
+      </div>
+    </section>
   );
 
   const safeToSpendCard = (
-    <Card className="border-brand-500/40 ring-1 ring-brand-500/20">
-      <CardTitle hint="הסכום שאפשר להוציא בלי לפגוע בהוצאות שכבר מתוכננות, בסכום הביטחון, ובכסף ששמור לחודשים הבאים." icon="shield-check">
+    <Card className="elev-2">
+      <CardTitle
+        hint="הסכום שאפשר להוציא בלי לפגוע בהוצאות שכבר מתוכננות, בסכום הביטחון, ובכסף ששמור לחודשים הבאים."
+        icon="shield-check"
+        iconTone="brand"
+      >
         בטוח להוציא עכשיו
       </CardTitle>
 
       {safeToSpend.isOverspent ? (
         <>
-          <p className="text-lg font-bold text-caution-600">{safeToSpend.headlineHe}</p>
+          <p className="text-lg font-semibold text-caution-600">{safeToSpend.headlineHe}</p>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">{safeToSpend.messageHe}</p>
         </>
       ) : (
         <>
-          <p className="text-4xl font-bold text-accent">
+          <p className="num-display text-[2.75rem] leading-none font-semibold text-accent">
             <Money agorot={safeToSpend.nowAgorot} />
           </p>
-          <p className="mt-2 text-sm text-slate-600">
-            השבוע: <Money agorot={safeToSpend.weekAgorot} className="font-semibold" />
-            <span aria-hidden className="mx-2 text-slate-400">
-              ·
+          <div className="mt-4 flex flex-wrap gap-2 text-sm">
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">
+              השבוע: <Money agorot={safeToSpend.weekAgorot} className="font-semibold text-slate-900" />
             </span>
-            נשארו <span className="num">{safeToSpend.daysLeftInMonth}</span> ימים בחודש
-          </p>
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">
+              נשארו{' '}
+              <span className="num font-semibold text-slate-900">{safeToSpend.daysLeftInMonth}</span>{' '}
+              ימים בחודש
+            </span>
+          </div>
         </>
       )}
 
-      <Button variant="ghost" className="mt-3 -ms-2" onClick={() => setShowBreakdown(true)}>
+      <Button variant="ghost" className="mt-3 -ms-3" onClick={() => setShowBreakdown(true)}>
         איך חישבנו את זה?
       </Button>
 
       {/* התחזית מופרדת ויזואלית — היא לא כסף שיש */}
       {safeToSpend.projection.confirmedIncomeLeftAgorot > 0 ? (
-        <div className="mt-3 border-t border-dashed border-slate-200 pt-3">
-          <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500"><Icon name="sparkles" className="size-3.5" />תחזית — לא כסף שיש לך</p>
-          <p className="mt-1 text-sm text-slate-500">
+        <div className="mt-3 border-t border-dashed border-slate-200 pt-4">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+            <Icon name="sparkles" className="size-3.5" />
+            תחזית — לא כסף שיש לך
+          </p>
+          <p className="mt-1.5 text-sm text-slate-600">
             אם ההכנסה הצפויה תיכנס (
             <Money agorot={safeToSpend.projection.confirmedIncomeLeftAgorot} /> ב־
             {formatDateHe(
@@ -150,35 +240,41 @@ export function Dashboard({
   );
 
   const reserveCard = seasonal.allocation ? (
-    <Card tone="caution">
-      <CardTitle icon="sun">שמור לחודשים הבאים</CardTitle>
-      <p className="text-3xl font-bold text-slate-900">
+    <Card>
+      <CardTitle icon="sun" iconTone="caution">
+        שמור לחודשים הבאים
+      </CardTitle>
+      <p className="num-display text-[2rem] leading-none font-semibold text-slate-900">
         <Money agorot={seasonal.reservedAgorot} />
       </p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-700">{seasonal.explanationHe}</p>
-      <Row label="הקצבה חודשית" strong>
-        <Money agorot={seasonal.allocation.monthlyAllowanceAgorot} />
-      </Row>
+      <p className="mt-3 text-sm leading-relaxed text-slate-600">{seasonal.explanationHe}</p>
+      <div className="mt-3 border-t border-slate-100 pt-1">
+        <Row label="הקצבה חודשית" strong>
+          <Money agorot={seasonal.allocation.monthlyAllowanceAgorot} />
+        </Row>
+      </div>
     </Card>
   ) : null;
 
   const goalCard = (
     <Card>
-      <CardTitle icon="target">היעד</CardTitle>
-      <div className="flex items-baseline justify-between">
-        <span className="text-2xl font-bold text-slate-900">
+      <CardTitle icon="target" iconTone="brand">
+        היעד
+      </CardTitle>
+      <div className="flex items-center justify-between gap-3">
+        <span className="num-display text-[2rem] leading-none font-semibold text-slate-900">
           <Money agorot={goalProgress.targetAgorot} />
         </span>
         {/* גם האחוז מוסתר במצב דיסקרטי — 88% ליד יעד של ₪5,000
             מגלה את היתרה בדיוק כמו הצגת היתרה עצמה. */}
-        <span className="num sensitive text-lg font-semibold text-accent">
+        <span className="num sensitive rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-accent">
           {goalProgress.progressPct}%
         </span>
       </div>
-      <div className="mt-3">
+      <div className="mt-4">
         <ProgressBar pct={goalProgress.progressPct} />
       </div>
-      <div className="mt-3 space-y-1">
+      <div className="mt-3 divide-y divide-slate-100">
         <Row label="נשאר עד היעד">
           <Money agorot={goalProgress.gapAgorot} />
         </Row>
@@ -192,21 +288,23 @@ export function Dashboard({
         </Row>
       </div>
 
-      <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-600">
+      <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-600">
         {goalProjection.reachMonth ? (
           <>
             בקצב הנוכחי:{' '}
-            <strong className="text-slate-800">{formatMonthHe(goalProjection.reachMonth)}</strong>
+            <strong className="font-semibold text-slate-900">
+              {formatMonthHe(goalProjection.reachMonth)}
+            </strong>
             <span className="mx-1 text-slate-500">·</span>
             <span className="text-xs">{confidenceLabelHe(goalProjection.confidence)}</span>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1.5 text-xs text-slate-500">
               זו תחזית לפי הנתונים שלך — לא תאריך יעד ולא הבטחה. היא זזה כשההרגלים משתנים.
             </p>
           </>
         ) : (
           <>
             בקצב הנוכחי עוד לא מגיעים ליעד — וזה בסדר גמור בשלב הזה.
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1.5 text-xs text-slate-500">
               כל חודש שבו נשאר משהו בצד מקרב אותו. אפשר גם לכוון קודם ל-
               <span className="num">₪1,000</span>.
             </p>
@@ -222,55 +320,89 @@ export function Dashboard({
           שגם החשובה שבהן לא מגיעה. השאר נמצאות במסך התובנות. */}
       <AlertList alerts={topAlerts(alerts, DASHBOARD_ALERTS)} />
       {moreAlerts > 0 ? (
-        <Link to="/insights" className="block py-2 text-sm font-semibold text-accent">
+        <Link
+          to="/insights"
+          className="flex min-h-11 items-center gap-1 px-1 text-sm font-semibold text-accent"
+        >
           עוד <span className="num">{moreAlerts}</span> דברים ששווה לראות ←
         </Link>
       ) : null}
     </>
   );
 
+  /**
+   * ⚠️ שלושת המספרים של החודש בשורה אחת, ולא בשלוש שורות תווית–ערך:
+   * "נכנס, יצא, ההפרש" הם השוואה, והשוואה נקראת טוב יותר כשהמספרים
+   * זה לצד זה.
+   */
+  const monthStats: { label: string; agorot: number; signed?: boolean }[] = [
+    { label: 'נכנס', agorot: month.incomeAgorot },
+    { label: 'יצא', agorot: month.expenseAgorot },
+    { label: 'ההפרש', agorot: month.netAgorot, signed: true },
+  ];
+
   const monthCard = (
     <Card>
-      <CardTitle>החודש</CardTitle>
-      <Row label="נכנס">
-        <Money agorot={month.incomeAgorot} />
-      </Row>
-      <Row label="יצא">
-        <Money agorot={month.expenseAgorot} />
-      </Row>
-      <Row label="ההפרש" strong>
-        <Money agorot={month.netAgorot} signed />
-      </Row>
-      <div className="my-2 border-t border-slate-100" />
-      <Row label="תקציב החודש">
-        <Money agorot={budgetPlan.monthlySpendAgorot} />
-      </Row>
-      <Row label="נשאר בתקציב" strong>
-        <Money agorot={budgetProgress.remainingAgorot} />
-      </Row>
+      <CardTitle icon="calendar">החודש</CardTitle>
+      <div className="grid grid-cols-3 gap-2">
+        {monthStats.map((stat) => (
+          <div key={stat.label} className="rounded-2xl bg-slate-50 px-3 py-3">
+            <p className="text-xs text-slate-600">{stat.label}</p>
+            <p className="mt-1 text-base font-semibold text-slate-900">
+              <Money agorot={stat.agorot} {...(stat.signed ? { signed: true } : {})} />
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 divide-y divide-slate-100">
+        <Row label="תקציב החודש">
+          <Money agorot={budgetPlan.monthlySpendAgorot} />
+        </Row>
+        <Row label="נשאר בתקציב" strong>
+          <Money agorot={budgetProgress.remainingAgorot} />
+        </Row>
+      </div>
       {budgetProgress.isAheadOfPace && !budgetProgress.isOverBudget ? (
         <p className="mt-2 text-xs leading-relaxed text-caution-600">
           הקצב קצת מהיר לעומת החלק שעבר מהחודש. עוד אפשר לאזן.
         </p>
       ) : null}
-      <Link to="/budget" className="mt-3 inline-block py-2 text-sm font-semibold text-accent">
+      <Link
+        to="/budget"
+        className="mt-2 flex min-h-11 items-center text-sm font-semibold text-accent"
+      >
         לתקציב המלא ←
       </Link>
     </Card>
   );
 
+  /**
+   * ⚠️ ה-"+" בשמות הנגישים נשאר (`sr-only`), גם כשרואים אייקון במקומו:
+   * קורא מסך צריך לשמוע "+ עסקה" ולא רק "עסקה", שנשמע כמו קישור
+   * לרשימת העסקאות.
+   */
   const quickActions = (
     <Card>
       <CardTitle>פעולות מהירות</CardTitle>
-      <div className="grid grid-cols-2 gap-2">
-        <Button onClick={onAddTransaction}>+ עסקה</Button>
-        <Button variant="secondary" onClick={onAsk}>
+      <div className="grid grid-cols-2 gap-2.5">
+        <button type="button" onClick={onAddTransaction} className={tileClass(true)}>
+          <TileIcon name="plus" primary />
+          <span>
+            <span className="sr-only">+ </span>עסקה
+          </span>
+        </button>
+        <button type="button" onClick={onAsk} className={tileClass(false)}>
+          <TileIcon name="calculator" />
           אפשר לקנות?
-        </Button>
-        <Link to="/expected-income" className={buttonClass('secondary', true)}>
-          + הכנסה צפויה
+        </button>
+        <Link to="/expected-income" className={tileClass(false)}>
+          <TileIcon name="wallet" />
+          <span>
+            <span className="sr-only">+ </span>הכנסה צפויה
+          </span>
         </Link>
-        <Link to="/backup" className={buttonClass('secondary', true)}>
+        <Link to="/backup" className={tileClass(false)}>
+          <TileIcon name="save" />
           גיבוי
         </Link>
       </div>
@@ -313,18 +445,18 @@ export function Dashboard({
    */
   const desktopLayout: ReactNode = (
     <>
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4 xl:gap-6">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4 xl:gap-5">
         <KpiCard
-          tone="brand"
+          tone="hero"
           label="יש לך"
           value={<Money agorot={balance.totalAgorot} />}
           sub={
             <>
-              בנק <Money agorot={bank?.balanceAgorot ?? 0} className="font-semibold" />
-              <span aria-hidden className="mx-2 text-brand-500">
+              בנק <Money agorot={bank?.balanceAgorot ?? 0} className="font-semibold text-white" />
+              <span aria-hidden className="mx-2 text-white/60">
                 ·
               </span>
-              מזומן <Money agorot={cash?.balanceAgorot ?? 0} className="font-semibold" />
+              מזומן <Money agorot={cash?.balanceAgorot ?? 0} className="font-semibold text-white" />
             </>
           }
         />
@@ -334,18 +466,19 @@ export function Dashboard({
             safeToSpend.isOverspent ? (
               <span className="text-2xl text-caution-600">חריגה</span>
             ) : (
-              <Money agorot={safeToSpend.nowAgorot} />
+              <span className="text-accent">
+                <Money agorot={safeToSpend.nowAgorot} />
+              </span>
             )
           }
           sub={
             <>
-              השבוע <Money agorot={safeToSpend.weekAgorot} className="font-semibold" /> ·{' '}
-              <span className="num">{safeToSpend.daysLeftInMonth}</span> ימים בחודש
+              השבוע <Money agorot={safeToSpend.weekAgorot} className="font-semibold text-slate-900" />{' '}
+              · <span className="num">{safeToSpend.daysLeftInMonth}</span> ימים בחודש
             </>
           }
         />
         <KpiCard
-          tone="caution"
           label="שמור לחודשים הבאים"
           value={<Money agorot={seasonal.reservedAgorot} />}
           sub={
@@ -354,7 +487,7 @@ export function Dashboard({
                 הקצבה חודשית{' '}
                 <Money
                   agorot={seasonal.allocation.monthlyAllowanceAgorot}
-                  className="font-semibold"
+                  className="font-semibold text-slate-900"
                 />
               </>
             ) : (
@@ -369,8 +502,8 @@ export function Dashboard({
           }
           sub={
             <>
-              נשאר <Money agorot={goalProgress.gapAgorot} className="font-semibold" /> מתוך{' '}
-              <Money agorot={goalProgress.targetAgorot} />
+              נשאר <Money agorot={goalProgress.gapAgorot} className="font-semibold text-slate-900" />{' '}
+              מתוך <Money agorot={goalProgress.targetAgorot} />
             </>
           }
         />
@@ -385,8 +518,8 @@ export function Dashboard({
         <Stack>
           {alertsSection}
           <BackupReminderBanner />
-      <SyncBanner />
-      <StorageBanner />
+          <SyncBanner />
+          <StorageBanner />
           {reserveCard}
           {quickActions}
           {emptyState}
@@ -399,6 +532,7 @@ export function Dashboard({
     <Page
       title="לוח הבקרה"
       showTitle={false}
+      leading={header}
       actions={
         <DiscreetToggle
           on={settings?.discreetMode ?? false}
@@ -410,7 +544,7 @@ export function Dashboard({
 
       {/* ── פירוט החישוב ─────────────────────────────────────── */}
       <Sheet open={showBreakdown} onClose={() => setShowBreakdown(false)} title="איך חישבנו">
-        <div className="space-y-1 text-slate-700">
+        <div className="divide-y divide-slate-100 text-slate-700">
           <Row label="יתרה קיימת">
             <Money agorot={safeToSpend.breakdown.currentBalanceAgorot} />
           </Row>
@@ -426,28 +560,31 @@ export function Dashboard({
           <Row label="− תרומה ליעד החודש">
             <Money agorot={safeToSpend.breakdown.goalDueThisMonthAgorot} />
           </Row>
-          <div className="my-2 border-t border-slate-200" />
+        </div>
+        <div className="mt-2 rounded-2xl bg-brand-50 px-4 py-1">
           <Row label="בטוח להוציא" strong>
             <Money agorot={safeToSpend.breakdown.resultAgorot} />
           </Row>
         </div>
 
         {safeToSpend.breakdown.committedItems.length > 0 ? (
-          <div className="mt-5">
-            <p className="mb-2 text-sm font-semibold text-slate-500">הוצאות החובה שנותרו</p>
-            {safeToSpend.breakdown.committedItems.map((item, i) => (
-              <Row
-                key={`${item.label}-${i}`}
-                label={`${item.label} · ${formatDateHe(item.dueDate)}`}
-              >
-                <Money agorot={item.amountAgorot} />
-              </Row>
-            ))}
+          <div className="mt-6">
+            <p className="mb-1 text-sm font-semibold text-slate-600">הוצאות החובה שנותרו</p>
+            <div className="divide-y divide-slate-100">
+              {safeToSpend.breakdown.committedItems.map((item, i) => (
+                <Row
+                  key={`${item.label}-${i}`}
+                  label={`${item.label} · ${formatDateHe(item.dueDate)}`}
+                >
+                  <Money agorot={item.amountAgorot} />
+                </Row>
+              ))}
+            </div>
           </div>
         ) : null}
 
         {safeToSpend.breakdown.reservedForFutureMonthsAgorot > 0 ? (
-          <p className="mt-5 rounded-xl bg-caution-100/50 p-3 text-xs leading-relaxed text-slate-700">
+          <p className="mt-5 rounded-2xl bg-caution-100/50 p-4 text-xs leading-relaxed text-slate-700">
             <strong>למה יש כסף שמור?</strong> {seasonal.explanationHe}
           </p>
         ) : null}
