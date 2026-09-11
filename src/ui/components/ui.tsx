@@ -48,13 +48,26 @@ export function Money({
  * (`max-sm:sr-only`). שורת הכותרת צרה מדי לשם מלא לצד הלוגו והברכה,
  * וקורא מסך עדיין שומע בדיוק מה הכפתור עושה.
  */
-export function DiscreetToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+export function DiscreetToggle({
+  on,
+  onToggle,
+  tone = 'default',
+}: {
+  on: boolean;
+  onToggle: () => void;
+  /** `glass` — כשהמתג יושב על משטח הגיבור הכהה. */
+  tone?: 'default' | 'glass';
+}) {
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-pressed={on}
-      className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-surface px-3 text-sm font-medium text-slate-600 elev-1 transition hover:text-slate-900"
+      className={`flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full px-3 text-sm font-medium transition active:scale-95 ${
+        tone === 'glass'
+          ? 'glass text-white hover:bg-white/15'
+          : 'border border-slate-200/80 bg-surface text-slate-600 elev-1 hover:text-slate-900'
+      }`}
     >
       <Icon name={on ? 'eye-off' : 'eye'} className="size-[1.125rem]" />
       <span className="max-sm:sr-only">{on ? 'להציג סכומים' : 'להסתיר סכומים'}</span>
@@ -263,7 +276,7 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
  * `<a>` הוא HTML לא חוקי, וקורא מסך מכריז עליו כשני פקדים מקוננים.
  */
 export function buttonClass(variant: ButtonVariant = 'primary', full = false): string {
-  return `inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition duration-150 ease-out disabled:cursor-not-allowed ${
+  return `inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100 ${
     BUTTON_VARIANTS[variant]
   } ${full ? 'w-full' : ''}`;
 }

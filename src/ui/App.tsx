@@ -72,6 +72,9 @@ const UNDER_MORE = new Set([
 
 function BottomNav() {
   const { pathname } = useLocation();
+  const activeIndex = TABS.findIndex((tab) =>
+    tab.to === '/more' ? UNDER_MORE.has(pathname) : pathname === tab.to,
+  );
   return (
     // ⚠️ זכוכית חלבית ולא משטח אטום: התוכן שנגלל מתחת נראה במעומעם,
     // והשורה מרגישה כחלק מהמסך ולא כפס שהודבק לתחתיתו.
@@ -79,11 +82,28 @@ function BottomNav() {
       aria-label="ניווט ראשי"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/70 bg-surface/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-150"
     >
-      <ul className="mx-auto flex max-w-md px-1">
-        {TABS.map((tab) => {
-          const active = tab.to === '/more' ? UNDER_MORE.has(pathname) : pathname === tab.to;
+      <ul className="relative mx-auto flex max-w-md">
+        {/*
+          ⚠️ גלולה אחת שגולשת בין הלשוניות, ולא גלולה לכל לשונית. התנועה
+          אומרת "עברת מכאן לשם" — מה שהחלפת צבע לבדה לא אומרת.
+
+          `start-0` הוא הקצה הימני ב-RTL, ו-translateX שלילי מזיז שמאלה,
+          לכיוון הלשוניות הבאות. האחוזים הם מרוחב הגלולה עצמה, שהיא בדיוק
+          חמישית מהשורה. הפריטים `relative` כדי שיצטיירו מעליה.
+        */}
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute start-0 top-2 flex h-7 w-1/5 justify-center transition-[transform,opacity] duration-300 ease-out ${
+            activeIndex < 0 ? 'opacity-0' : ''
+          }`}
+          style={{ transform: `translateX(${-Math.max(activeIndex, 0) * 100}%)` }}
+        >
+          <span className="h-full w-14 rounded-full bg-brand-50" />
+        </span>
+        {TABS.map((tab, index) => {
+          const active = index === activeIndex;
           return (
-            <li key={tab.to} className="flex-1">
+            <li key={tab.to} className="relative flex-1">
               <Link
                 to={tab.to}
                 aria-current={active ? 'page' : undefined}
@@ -91,14 +111,13 @@ function BottomNav() {
                   active ? 'font-semibold text-accent' : 'font-medium text-slate-500'
                 }`}
               >
-                {/* ⚠️ הלשונית הפעילה מסומנת בגלולה מאחורי האייקון ולא רק
-                    בצבע. צבע לבד לא מספיק כסימן — WCAG 1.4.1. */}
-                <span
-                  className={`flex h-7 w-14 items-center justify-center rounded-full transition ${
-                    active ? 'bg-brand-50' : ''
-                  }`}
-                >
-                  <Icon name={tab.icon} className="size-[1.375rem]" />
+                {/* ⚠️ הלשונית הפעילה מסומנת בגלולה, במשקל ובגודל האייקון —
+                    לא בצבע בלבד. צבע לבד לא מספיק כסימן (WCAG 1.4.1). */}
+                <span className="flex h-7 w-14 items-center justify-center">
+                  <Icon
+                    name={tab.icon}
+                    className={`size-[1.375rem] transition-transform duration-300 ${active ? 'scale-110' : ''}`}
+                  />
                 </span>
                 {tab.label}
               </Link>
@@ -204,9 +223,21 @@ function Shell() {
         מתחת לתוכן שלו בלי זה.
       */}
       <div className={`lg:flex ${settings?.discreetMode ? 'discreet' : ''}`}>
+        {/* הילה עדינה בראש המסך — שכבה קבועה מאחורי התוכן. */}
+        <div aria-hidden className="page-glow" />
         {isDesktop ? <Sidebar onAddTransaction={openTransactionForm} /> : null}
 
         <div className="min-w-0 flex-1">
+        {/*
+          ⚠️ מעבר בין מסכים. `key` לפי הנתיב מרכיב את התוכן מחדש, ולכן
+          אנימציית הכניסה רצה פעם אחת בכל מעבר — ולא בכל שינוי בנתונים.
+
+          ⚠️ האנימציה מסתיימת ב-`transform: none`. אלמנט עם transform הופך
+          לבלוק המכיל של צאצאים ב-`position: fixed`, וגיליון שנפתח בתוך
+          המסך היה נצמד אליו במקום לכסות את המסך. זה נכון רק ב-320ms של
+          הכניסה עצמה.
+        */}
+        <div key={pathname} className="animate-page-in">
         <Routes>
           <Route
             path="/"
@@ -233,6 +264,7 @@ function Shell() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </div>
         </div>
 
         {/* הכפתור הצף והשורה התחתונה פותרים בעיה של אגודל. במסך רחב

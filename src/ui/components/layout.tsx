@@ -66,23 +66,30 @@ export function Page({
         היה משאיר את הפעולות דבוקות לתחילת השורה — הפוך ממה שהיה
         בלוח הבקרה בגרסה 1.0, שבו מתג ההסתרה יושב בקצה.
       */}
-      <div
-        className={`flex min-h-11 items-center gap-4 ${
-          showTitle || leading ? 'justify-between' : 'justify-end'
-        }`}
-      >
-        <h1
-          className={
-            showTitle
-              ? 'pt-1 text-[1.75rem] leading-tight font-bold tracking-tight text-slate-900 lg:pt-0 lg:text-[2rem]'
-              : 'sr-only'
-          }
+      {showTitle || leading || actions ? (
+        <div
+          className={`flex min-h-11 items-center gap-4 ${
+            showTitle || leading ? 'justify-between' : 'justify-end'
+          }`}
         >
-          {title}
-        </h1>
-        {!showTitle ? leading : null}
-        {actions}
-      </div>
+          <h1
+            className={
+              showTitle
+                ? 'pt-1 text-[1.75rem] leading-tight font-bold tracking-tight text-slate-900 lg:pt-0 lg:text-[2rem]'
+                : 'sr-only'
+            }
+          >
+            {title}
+          </h1>
+          {!showTitle ? leading : null}
+          {actions}
+        </div>
+      ) : (
+        // ⚠️ בלי שורת כותרת בכלל כשאין מה להציג בה. לוח הבקרה מתחיל
+        // במשטח גיבור שנמתח עד קצות המסך, ושורה ריקה בגובה 44 פיקסלים
+        // מעליו הייתה דוחפת אותו למטה ומשאירה פס ריק בראש המסך.
+        <h1 className="sr-only">{title}</h1>
+      )}
       {children}
     </main>
   );

@@ -107,7 +107,7 @@
   /* משטח הגיבור: אזמרגד עמוק שנמס לדיו, עם הילה בפינת ההתחלה.
      ‏`100% 0%` היא הפינה הימנית העליונה — תחילת הקריאה ב-RTL. */
   --hero-bg:
-    radial-gradient(120% 90% at 100% 0%, oklch(0.62 0.13 158 / 0.42), transparent 58%),
+    radial-gradient(120% 90% at 100% 0%, oklch(0.62 0.13 158 / 0.25), transparent 58%),
     radial-gradient(90% 70% at 0% 100%, oklch(0.45 0.09 205 / 0.28), transparent 62%),
     linear-gradient(150deg, oklch(0.33 0.075 164), oklch(0.235 0.05 175) 55%, oklch(0.2 0.035 215));
   --brand-mark-bg: linear-gradient(145deg, oklch(0.62 0.14 158), oklch(0.36 0.08 168));
@@ -228,9 +228,9 @@
 
   /* על רקע כהה הגיבור חייב להיות **בהיר** מהדף, אחרת הוא נבלע בו. */
   --hero-bg:
-    radial-gradient(120% 90% at 100% 0%, oklch(0.62 0.13 158 / 0.36), transparent 58%),
+    radial-gradient(120% 90% at 100% 0%, oklch(0.62 0.13 158 / 0.22), transparent 58%),
     radial-gradient(90% 70% at 0% 100%, oklch(0.45 0.09 205 / 0.24), transparent 62%),
-    linear-gradient(150deg, oklch(0.37 0.08 164), oklch(0.27 0.055 172) 55%, oklch(0.23 0.04 210));
+    linear-gradient(150deg, oklch(0.34 0.075 164), oklch(0.27 0.055 172) 55%, oklch(0.23 0.04 210));
 }
 
 /* ⚠️ `color-scheme` נקבע לפי הערכה שנבחרה ולא כ-`light dark`.
@@ -249,7 +249,8 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   font-optical-sizing: auto;
-  background: var(--color-page);
+  /* ⚠️ בלי background כאן. הרקע יושב על html בלבד — אחרת רקע אטום של
+     body היה מכסה את שכבת ההילה (`.page-glow`, z-index: -1). */
   color: var(--color-slate-900);
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
@@ -317,11 +318,173 @@ body {
   outline-offset: 2px;
 }
 
+/* ============================================================
+   v2 — תנועה ואווירה
+   ============================================================
+   ⚠️ המשתמש ביקש במפורש שהממשק ירגיש חי. הכללים שמונעים מזה להפוך
+   לרעש:
+
+   • **כניסה אחת למסך.** כרטיסים עולים בזה אחר זה פעם אחת, לא בכל
+     רינדור. תנועה שחוזרת בכל פעולה הופכת שימוש יומיומי להמתנה.
+   • **אווירה במשטח הגיבור בלבד.** הילות שנעות לאט וברק שעובר מדי כמה
+     שניות. כל שאר המסך שקט — אחרת שום דבר לא בולט.
+   • **רק `transform` ו-`opacity` זזים.** הם מחושבים בכרטיס המסך ולא
+     גורמים לחישוב פריסה מחדש, ולכן לא מקטעים גלילה בטלפון.
+   ============================================================ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility animate-rise {
+  animation: rise 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility animate-page-in {
+  animation: page-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* הילות שנעות לאט במשטח הגיבור. ‏18 ו-22 שניות, ובכיוונים הפוכים —
+   מחזורים שלא מסתנכרנים, ולכן התנועה לא נראית כמו לולאה. */
+@keyframes drift-a {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-22%, 14%, 0) scale(1.18);
+  }
+  100% {
+    transform: translate3d(10%, -8%, 0) scale(0.92);
+  }
+}
+@keyframes drift-b {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  50% {
+    transform: translate3d(18%, -12%, 0) scale(0.9);
+  }
+  100% {
+    transform: translate3d(-12%, 10%, 0) scale(1.15);
+  }
+}
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(44px);
+  pointer-events: none;
+  will-change: transform;
+}
+/* ⚠️ הבהירות של ההילות מוגבלת (0.55 ומטה) בכוונה: הטקסט המשני על
+   הגיבור הוא לבן ב-90%, והוא צריך 4.5:1 גם בנקודה הבהירה ביותר. */
+.aurora-a {
+  width: 75%;
+  aspect-ratio: 1;
+  top: -40%;
+  inset-inline-start: -12%;
+  background: oklch(0.55 0.14 160 / 0.5);
+  animation: drift-a 18s ease-in-out infinite alternate;
+}
+.aurora-b {
+  width: 65%;
+  aspect-ratio: 1;
+  bottom: -45%;
+  inset-inline-end: -15%;
+  background: oklch(0.48 0.1 205 / 0.45);
+  animation: drift-b 22s ease-in-out infinite alternate;
+}
+
+/* ברק שחוצה את כרטיס היתרה פעם בשמונה שניות — כמו אור על כרטיס מתכת. */
+@keyframes sheen {
+  0%,
+  72% {
+    transform: translateX(160%) skewX(-16deg);
+  }
+  100% {
+    transform: translateX(-260%) skewX(-16deg);
+  }
+}
+.hero-sheen::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.08), transparent);
+  animation: sheen 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* זכוכית — למשטחים שיושבים על הגיבור הכהה. */
+@utility glass {
+  background: oklch(1 0 0 / 0.08);
+  border: 1px solid oklch(1 0 0 / 0.14);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* הילה עדינה בראש כל מסך. שכבה קבועה מאחורי התוכן, ולא רקע של body —
+   ראה את ההערה ב-body. */
+.page-glow {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  height: 26rem;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 90% at 100% 0%, oklch(0.82 0.1 163 / 0.22), transparent 70%),
+    radial-gradient(45% 70% at 0% 0%, oklch(0.84 0.07 205 / 0.16), transparent 70%);
+}
+[data-theme='dark'] .page-glow {
+  background:
+    radial-gradient(55% 90% at 100% 0%, oklch(0.45 0.1 163 / 0.28), transparent 70%),
+    radial-gradient(45% 70% at 0% 0%, oklch(0.42 0.08 205 / 0.2), transparent 70%);
+}
+
+/* ============================================================
+   מי שביקש פחות תנועה
+   ============================================================
+   ⚠️ שלושה שינויים מהגרסה הקודמת של הבלוק:
+
+   • `transition-duration: 0s` ולא 0.01ms. ‏0.01ms יוצר מעבר על **כל**
+     מאפיין של **כל** אלמנט (`transition-property` ברירת המחדל היא
+     `all`) — מאות מעברים זעירים בכל החלפת ערכה. אפס פשוט לא יוצר אותם.
+   • `animation-iteration-count: 1`. בלי זה, אנימציה אינסופית שקוצרה
+     ל-0.01ms רצה אלפי פעמים בשנייה — הבהוב במקום שקט.
+   • ההילות והברק מבוטלים לגמרי ולא רק מקוצרים: הם אווירה, לא מידע.
+   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
   }
+  .aurora-blob,
+  .hero-sheen::after {
+    animation: none !important;
+  }
+}
+
+/* ⚠️ בכהה הבאנר בהיר מהדף (אחרת הוא נבלע), ולכן ההילה בו עדינה יותר.
+   נמדד: באותה עוצמה כמו בבהיר, תוויות על הזכוכית ירדו ל-4.40:1. */
+[data-theme='dark'] .aurora-a {
+  background: oklch(0.55 0.14 160 / 0.38);
 }

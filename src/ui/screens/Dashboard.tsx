@@ -5,23 +5,25 @@
  * בטוח להוציא, כמה שמור לעתיד, איפה אני מול היעד, והאם משהו דורש
  * תשומת לב. כל דבר נוסף מתחרה על אותן חמש שניות.
  *
- * לכן ירדו מכאן בשלב הליטוש: תקציב הבילויים (יש לו מסך), הפילוח לפי
- * קטגוריה (יש לו מסך), והתחזית לשלושה חודשים (יש לה מסך). הם לא
- * נמחקו — הם רק לא במסך שנפתח שלושים פעם ביום.
- *
- * ⚠️ **שתי פריסות, אותם כרטיסים.**
- *
- * כל כרטיס הוא קומפוננטה אחת, והיא נבנית פעם אחת. מה שמשתנה בין
- * מובייל לדסקטופ הוא **הסידור בלבד** — ולכן אין סיכוי ששתי הפריסות
+ * ⚠️ **שתי פריסות, אותם כרטיסים.** כל כרטיס נבנה פעם אחת; מה שמשתנה
+ * בין מובייל לדסקטופ הוא הסידור בלבד — ולכן אין סיכוי ששתי הפריסות
  * יציגו מספרים שונים.
  *
- * ⚠️ **היררכיה ויזואלית (v1.5).** היתרה היא המשטח הכהה היחיד במסך —
- * כרטיס "ארנק". "בטוח להוציא" מקבל את המספר הירוק הגדול ואת הצל העמוק
- * ביותר מבין הכרטיסים הלבנים. כל השאר שקט יותר. קודם כל הכרטיסים היו
- * באותו משקל, והעין לא ידעה מאיפה להתחיל.
+ * ⚠️ **v2 — "שזה ייראה ממש אחרת".** המשתמש לא ראה הבדל בגרסה הקודמת,
+ * וביקש משהו שאי אפשר לפספס:
+ *
+ * • **באנר גיבור לכל רוחב המסך** — אזמרגד כהה עם הילות שנעות לאט וברק
+ *   שחוצה אותו, כמו כרטיס מתכת. היתרה סופרת עד הערך, ולצידה קו מגמה.
+ * • **"בטוח להוציא" עולה על הבאנר**, כמו באפליקציות בנק — הוא המספר
+ *   שבגללו פותחים את המסך, והחפיפה מושכת אליו את העין מיד.
+ * • **טבעת יעד** במקום פס, **מד תקציב** עם סימון קצב, ו**פעולות מהירות**
+ *   בעיגולים.
+ * • **כרטיסים שעולים בזה אחר זה** — פעם אחת בכניסה, לא בכל רינדור.
+ *
+ * כל התנועה מכבדת את הגדרת "הפחתת תנועה" של המערכת. ראה `motion.tsx`.
  */
 
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../AppData';
 import { useIsDesktop } from '../useMediaQuery';
@@ -33,8 +35,18 @@ import { SyncBanner } from '../components/SyncBanner';
 import { StorageBanner } from '../components/StorageBanner';
 import { Page, Stack } from '../components/layout';
 import { confidenceLabelHe } from '../../core/confidence';
-import { formatDateHe, formatMonthHe } from '../../core/dates';
+import { totalBalance } from '../../core/balance';
+import {
+  addMonthsToMonth,
+  eachMonth,
+  formatDateHe,
+  formatMonthHe,
+  monthEnd,
+  monthOf,
+} from '../../core/dates';
 import { Icon, type IconName } from '../components/icons';
+import { AnimatedMoney, stagger, useCountUp } from '../motion';
+import { BudgetMeter, GoalRing, Sparkline } from '../components/visuals';
 import {
   BrandMark,
   Button,
@@ -42,11 +54,8 @@ import {
   CardTitle,
   DiscreetToggle,
   EmptyState,
-  KpiCard,
   LoadingState,
-  Medallion,
   Money,
-  ProgressBar,
   Row,
   Sheet,
 } from '../components/ui';
@@ -54,11 +63,14 @@ import {
 /** כמה התראות במסך הראשי. השאר במסך התובנות. */
 const DASHBOARD_ALERTS = 1;
 
+/** אורך קו המגמה בבאנר, בחודשים. */
+const TREND_MONTHS = 6;
+
 /**
  * ברכה לפי שעה.
  *
  * ⚠️ נגזרת משעון המכשיר, ובכוונה — זה טקסט תצוגה ולא חישוב. שום מספר
- * פיננסי לא תלוי בו, ולכן אין כאן את הבעיה של שעון מקומי מול שעון שרת.
+ * פיננסי לא תלוי בו.
  */
 function greetingFor(hour: number): string {
   if (hour >= 5 && hour < 12) return 'בוקר טוב';
@@ -74,27 +86,22 @@ const TODAY_FORMAT = new Intl.DateTimeFormat('he-IL', {
 });
 
 /**
- * אריח פעולה מהירה.
+ * פעולה מהירה — עיגול עם תווית מתחתיו.
  *
- * ⚠️ אריח אחד בלבד מלא בצבע — הוספת עסקה, הפעולה שעושים הכי הרבה.
- * ארבעה אריחים ירוקים היו שקולים לאפס.
+ * ⚠️ רק אחת מלאה בצבע: הוספת עסקה, הפעולה שעושים הכי הרבה.
  */
-function tileClass(primary: boolean): string {
-  return `flex min-h-[5.5rem] flex-col items-start justify-between gap-3 rounded-2xl border p-3.5 text-start text-sm font-semibold transition duration-150 active:scale-[0.98] ${
-    primary
-      ? 'border-transparent bg-brand-700 text-white elev-btn hover:bg-brand-900'
-      : 'border-slate-200/70 bg-surface text-slate-800 elev-1 hover:border-slate-300 hover:bg-slate-50'
-  }`;
-}
+const QUICK_ITEM = 'group flex flex-col items-center gap-2 rounded-2xl p-1.5 text-center';
+const QUICK_LABEL = 'text-xs leading-tight font-semibold text-slate-700';
 
-function TileIcon({ name, primary = false }: { name: IconName; primary?: boolean }) {
-  if (!primary) return <Medallion icon={name} tone="brand" />;
+function QuickIcon({ name, primary = false }: { name: IconName; primary?: boolean }) {
   return (
     <span
       aria-hidden
-      className="flex size-8 items-center justify-center rounded-[0.625rem] bg-white/15"
+      className={`flex size-14 items-center justify-center rounded-2xl transition duration-200 group-hover:-translate-y-0.5 group-active:scale-95 ${
+        primary ? 'bg-brand-700 text-white elev-btn' : 'bg-brand-50 text-accent'
+      }`}
     >
-      <Icon name={name} className="size-[1.125rem]" />
+      <Icon name={name} className="size-6" />
     </span>
   );
 }
@@ -106,9 +113,35 @@ export function Dashboard({
   onAddTransaction: () => void;
   onAsk: () => void;
 }) {
-  const { dashboard, loading, settings } = useAppData();
+  const { dashboard, snapshot, loading, settings } = useAppData();
   const isDesktop = useIsDesktop();
   const [showBreakdown, setShowBreakdown] = useState(false);
+
+  // ⚠️ ה-hooks לפני כל `return` מוקדם — React דורש את אותו סדר בכל רינדור.
+  const goalPctShown = Math.round(useCountUp(dashboard?.goalProgress.progressPct ?? 0));
+
+  /**
+   * קו המגמה: היתרה בסוף כל חודש, והנקודה האחרונה — היום.
+   *
+   * ⚠️ מחושב ב-`totalBalance`, **אותה** פונקציה שמחשבת את המספר הגדול
+   * בבאנר. כך הקו נגמר בדיוק על היתרה המוצגת. חישוב נפרד (למשל סכום
+   * מצטבר של הכנסות פחות הוצאות) היה יכול להיגמר במספר אחר.
+   *
+   * ⚠️ לא לפני תאריך הפתיחה של החשבון המוקדם ביותר — לפני כן אין יתרה
+   * מוגדרת, ונקודה שם הייתה ממציאה נתון.
+   */
+  const trend = useMemo(() => {
+    if (!snapshot) return [];
+    const opening = snapshot.accounts.map((a) => a.openingDate).sort()[0];
+    if (!opening) return [];
+    const thisMonth = monthOf(snapshot.today);
+    const windowStart = addMonthsToMonth(thisMonth, -(TREND_MONTHS - 1));
+    const from = monthOf(opening) > windowStart ? monthOf(opening) : windowStart;
+    return eachMonth(from, thisMonth).map((month) => {
+      const asOf = month === thisMonth ? snapshot.today : monthEnd(month);
+      return totalBalance(snapshot.accounts, snapshot.transactions, asOf).totalAgorot;
+    });
+  }, [snapshot]);
 
   if (loading) return <LoadingState />;
   if (!dashboard) return <LoadingState label="מכין את הנתונים…" />;
@@ -131,59 +164,130 @@ export function Dashboard({
   const moreAlerts = alerts.length - DASHBOARD_ALERTS;
   const now = new Date();
 
-  // ── ראש המסך ────────────────────────────────────────────────────
+  // ── באנר הגיבור ─────────────────────────────────────────────────
 
   /**
-   * ⚠️ הלוגו מופיע רק בטלפון. בדסקטופ הוא כבר בראש סרגל הצד, ושני
-   * לוגואים באותו מסך הם רעש.
+   * ⚠️ טקסט משני ישירות על הבאנר — לבן ב-90%; על משטחי הזכוכית — לבן מלא. ההילות מבהירות את
+   * הרקע בנקודות מסוימות: נמדד ש-70% יורד שם מתחת ל-4.5:1, ובכהה גם 90% על זכוכית נתן רק 4.40:1.
+   *
+   * ⚠️ בטלפון הבאנר נמתח עד קצות המסך (`-mx-4 -mt-4` מבטלים את ריווח
+   * הדף) ומתעגל רק למטה. בדסקטופ הוא כרטיס מעוגל רגיל.
    */
-  const header = (
-    <div className="flex items-center gap-3">
-      <BrandMark className="size-10 lg:hidden" />
-      <div className="leading-tight">
-        <p className="text-xs font-medium text-slate-600">{TODAY_FORMAT.format(now)}</p>
-        <p className="mt-0.5 text-lg font-semibold tracking-tight text-slate-900 lg:text-2xl">
-          {greetingFor(now.getHours())}
+  const desktopStats = isDesktop ? (
+    <div className="relative mt-8 grid grid-cols-3 gap-3">
+      <div className="glass rounded-2xl p-4">
+        <p className="text-sm text-white">בטוח להוציא עכשיו</p>
+        <p className="num-display mt-2 text-[1.75rem] leading-none font-semibold">
+          {safeToSpend.isOverspent ? 'חריגה' : <AnimatedMoney agorot={safeToSpend.nowAgorot} />}
+        </p>
+        <p className="mt-2 text-xs text-white">
+          השבוע <Money agorot={safeToSpend.weekAgorot} className="font-semibold text-white" /> ·{' '}
+          <span className="num">{safeToSpend.daysLeftInMonth}</span> ימים בחודש
+        </p>
+      </div>
+      <div className="glass rounded-2xl p-4">
+        <p className="text-sm text-white">שמור לחודשים הבאים</p>
+        <p className="num-display mt-2 text-[1.75rem] leading-none font-semibold">
+          <Money agorot={seasonal.reservedAgorot} />
+        </p>
+        <p className="mt-2 text-xs text-white">
+          {seasonal.allocation ? (
+            <>
+              הקצבה חודשית{' '}
+              <Money
+                agorot={seasonal.allocation.monthlyAllowanceAgorot}
+                className="font-semibold text-white"
+              />
+            </>
+          ) : (
+            'אין כרגע כסף עונתי בצד'
+          )}
+        </p>
+      </div>
+      <div className="glass rounded-2xl p-4">
+        <p className="text-sm text-white">היעד</p>
+        <p className="num-display mt-2 text-[1.75rem] leading-none font-semibold">
+          <span className="num sensitive">{goalPctShown}%</span>
+        </p>
+        <p className="mt-2 text-xs text-white">
+          נשאר <Money agorot={goalProgress.gapAgorot} className="font-semibold text-white" /> מתוך{' '}
+          <Money agorot={goalProgress.targetAgorot} />
         </p>
       </div>
     </div>
+  ) : null;
+
+  const hero = (
+    <section
+      aria-label="היתרה"
+      className="hero-surface hero-sheen relative isolate -mx-4 -mt-4 overflow-hidden rounded-b-[2rem] px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-20 text-white lg:mx-0 lg:mt-0 lg:rounded-[1.75rem] lg:px-8 lg:pt-7 lg:pb-8"
+    >
+      <span aria-hidden className="aurora-blob aurora-a" />
+      <span aria-hidden className="aurora-blob aurora-b" />
+
+      <div className="relative flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          {/* בדסקטופ הלוגו כבר בראש סרגל הצד — שניים באותו מסך הם רעש. */}
+          <BrandMark className="size-10 lg:hidden" />
+          <div className="leading-tight">
+            <p className="text-xs font-medium text-white/90">{TODAY_FORMAT.format(now)}</p>
+            <p className="mt-0.5 text-lg font-semibold tracking-tight lg:text-2xl">
+              {greetingFor(now.getHours())}
+            </p>
+          </div>
+        </div>
+        <DiscreetToggle
+          tone="glass"
+          on={settings?.discreetMode ?? false}
+          onToggle={() => saveSettings(db, { discreetMode: !settings?.discreetMode })}
+        />
+      </div>
+
+      <div className="relative mt-8 lg:flex lg:items-end lg:justify-between lg:gap-10">
+        <div>
+          <p className="text-sm font-medium text-white/90">יש לך</p>
+          <p className="num-display mt-2 text-[3.25rem] leading-none font-semibold lg:text-[4rem]">
+            <AnimatedMoney agorot={balance.totalAgorot} />
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <span className="glass rounded-full px-3 py-1.5 text-sm">
+              <span className="text-white">בנק</span>{' '}
+              <Money agorot={bank?.balanceAgorot ?? 0} className="font-semibold" />
+            </span>
+            <span className="glass rounded-full px-3 py-1.5 text-sm">
+              <span className="text-white">מזומן</span>{' '}
+              <Money agorot={cash?.balanceAgorot ?? 0} className="font-semibold" />
+            </span>
+          </div>
+        </div>
+
+        {trend.length >= 2 ? (
+          <div className="mt-7 lg:mt-0 lg:w-[22rem]">
+            <Sparkline values={trend} className="h-16 w-full" />
+            <p className="mt-2 text-xs text-white">
+              מגמת היתרה · <span className="num">{trend.length}</span> חודשים אחרונים
+            </p>
+          </div>
+        ) : null}
+      </div>
+
+      {desktopStats}
+    </section>
   );
 
   // ── הכרטיסים ────────────────────────────────────────────────────
 
-  /**
-   * ⚠️ המשטח הכהה היחיד במסך. הטקסט עליו לבן, והמשני לבן ב-85%
-   * שקיפות. נמדד: 70% נתן 4.1:1 בנקודה הבהירה ביותר של ההילה — מתחת לסף — ולכן 85%.
-   */
-  const balanceCard = (
-    <section
-      aria-label="היתרה"
-      className="hero-surface relative overflow-hidden rounded-[1.5rem] border border-white/10 p-6 text-white"
-    >
-      <p className="text-sm font-medium text-white/85">יש לך</p>
-      <p className="num-display mt-3 text-[2.75rem] leading-none font-semibold">
-        <Money agorot={balance.totalAgorot} />
-      </p>
-      <div className="mt-6 flex items-center gap-5">
-        <div>
-          <p className="text-xs text-white/85">בנק</p>
-          <p className="mt-1 text-base font-semibold">
-            <Money agorot={bank?.balanceAgorot ?? 0} />
-          </p>
-        </div>
-        <span aria-hidden className="h-9 w-px bg-white/15" />
-        <div>
-          <p className="text-xs text-white/85">מזומן</p>
-          <p className="mt-1 text-base font-semibold">
-            <Money agorot={cash?.balanceAgorot ?? 0} />
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-
   const safeToSpendCard = (
-    <Card className="elev-2">
+    <Card className="relative overflow-hidden elev-2">
+      {/* פס צבע דק בראש הכרטיס — הסימן לכך שזה הכרטיס החשוב. */}
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-1"
+        style={{
+          background:
+            'linear-gradient(to left, var(--color-brand-500), var(--color-brand-700) 60%, transparent)',
+        }}
+      />
       <CardTitle
         hint="הסכום שאפשר להוציא בלי לפגוע בהוצאות שכבר מתוכננות, בסכום הביטחון, ובכסף ששמור לחודשים הבאים."
         icon="shield-check"
@@ -199,8 +303,8 @@ export function Dashboard({
         </>
       ) : (
         <>
-          <p className="num-display text-[2.75rem] leading-none font-semibold text-accent">
-            <Money agorot={safeToSpend.nowAgorot} />
+          <p className="num-display text-[3rem] leading-none font-semibold text-accent">
+            <AnimatedMoney agorot={safeToSpend.nowAgorot} />
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-sm">
             <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">
@@ -256,28 +360,41 @@ export function Dashboard({
     </Card>
   ) : null;
 
+  /**
+   * ⚠️ הטבעת היא מד ההתקדמות הראשון במסך (`role="progressbar"`), לפני
+   * מד התקציב שבכרטיס החודש. יש בדיקה שתלויה בסדר הזה.
+   */
   const goalCard = (
     <Card>
       <CardTitle icon="target" iconTone="brand">
         היעד
       </CardTitle>
-      <div className="flex items-center justify-between gap-3">
-        <span className="num-display text-[2rem] leading-none font-semibold text-slate-900">
-          <Money agorot={goalProgress.targetAgorot} />
-        </span>
-        {/* גם האחוז מוסתר במצב דיסקרטי — 88% ליד יעד של ₪5,000
-            מגלה את היתרה בדיוק כמו הצגת היתרה עצמה. */}
-        <span className="num sensitive rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-accent">
-          {goalProgress.progressPct}%
-        </span>
+      <div className="flex items-center gap-5">
+        <GoalRing pct={goalProgress.progressPct} label="התקדמות ליעד">
+          {/* גם האחוז מוסתר במצב דיסקרטי — 88% ליד יעד של ₪5,000
+              מגלה את היתרה בדיוק כמו הצגת היתרה עצמה. */}
+          <span className="num sensitive num-display text-[1.75rem] leading-none font-semibold text-slate-900">
+            {goalPctShown}%
+          </span>
+          <span className="mt-1 text-xs text-slate-600">הושג</span>
+        </GoalRing>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <p className="text-xs text-slate-600">סכום היעד</p>
+            <p className="num-display mt-0.5 text-2xl font-semibold text-slate-900">
+              <Money agorot={goalProgress.targetAgorot} />
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-600">נשאר עד היעד</p>
+            <p className="mt-0.5 text-base font-semibold text-slate-900">
+              <Money agorot={goalProgress.gapAgorot} />
+            </p>
+          </div>
+        </div>
       </div>
-      <div className="mt-4">
-        <ProgressBar pct={goalProgress.progressPct} />
-      </div>
-      <div className="mt-3 divide-y divide-slate-100">
-        <Row label="נשאר עד היעד">
-          <Money agorot={goalProgress.gapAgorot} />
-        </Row>
+
+      <div className="mt-4 divide-y divide-slate-100">
         {goalProgress.nextMilestone ? (
           <Row label="יעד הביניים הבא">
             <Money agorot={goalProgress.nextMilestone.amountAgorot} />
@@ -314,32 +431,41 @@ export function Dashboard({
     </Card>
   );
 
-  const alertsSection = (
-    <>
-      {/* התראה אחת בלבד. רשימה של שבע נגללת ולא נקראת, והתוצאה היא
-          שגם החשובה שבהן לא מגיעה. השאר נמצאות במסך התובנות. */}
-      <AlertList alerts={topAlerts(alerts, DASHBOARD_ALERTS)} />
-      {moreAlerts > 0 ? (
-        <Link
-          to="/insights"
-          className="flex min-h-11 items-center gap-1 px-1 text-sm font-semibold text-accent"
-        >
-          עוד <span className="num">{moreAlerts}</span> דברים ששווה לראות ←
-        </Link>
-      ) : null}
-    </>
-  );
+  const alertsSection =
+    alerts.length > 0 ? (
+      <div>
+        {/* התראה אחת בלבד. רשימה של שבע נגללת ולא נקראת, והתוצאה היא
+            שגם החשובה שבהן לא מגיעה. השאר נמצאות במסך התובנות. */}
+        <AlertList alerts={topAlerts(alerts, DASHBOARD_ALERTS)} />
+        {moreAlerts > 0 ? (
+          <Link
+            to="/insights"
+            className="flex min-h-11 items-center gap-1 px-1 text-sm font-semibold text-accent"
+          >
+            עוד <span className="num">{moreAlerts}</span> דברים ששווה לראות ←
+          </Link>
+        ) : null}
+      </div>
+    ) : null;
 
   /**
-   * ⚠️ שלושת המספרים של החודש בשורה אחת, ולא בשלוש שורות תווית–ערך:
-   * "נכנס, יצא, ההפרש" הם השוואה, והשוואה נקראת טוב יותר כשהמספרים
-   * זה לצד זה.
+   * ⚠️ שלושת המספרים של החודש בשורה אחת: "נכנס, יצא, ההפרש" הם השוואה,
+   * והשוואה נקראת טוב יותר כשהמספרים זה לצד זה.
    */
-  const monthStats: { label: string; agorot: number; signed?: boolean }[] = [
-    { label: 'נכנס', agorot: month.incomeAgorot },
-    { label: 'יצא', agorot: month.expenseAgorot },
-    { label: 'ההפרש', agorot: month.netAgorot, signed: true },
+  const monthStats: { label: string; agorot: number; dot: string; signed?: boolean }[] = [
+    { label: 'נכנס', agorot: month.incomeAgorot, dot: 'bg-brand-500' },
+    { label: 'יצא', agorot: month.expenseAgorot, dot: 'bg-slate-400' },
+    // ⚠️ הנקודה לפי הסימן: ענבר על הפרש חיובי היה אומר "אזהרה" על תוצאה טובה.
+    {
+      label: 'ההפרש',
+      agorot: month.netAgorot,
+      dot: month.netAgorot >= 0 ? 'bg-brand-500' : 'bg-caution-600',
+      signed: true,
+    },
   ];
+
+  const budgetTone =
+    budgetProgress.isOverBudget || budgetProgress.isAheadOfPace ? 'caution' : 'brand';
 
   const monthCard = (
     <Card>
@@ -347,13 +473,32 @@ export function Dashboard({
       <div className="grid grid-cols-3 gap-2">
         {monthStats.map((stat) => (
           <div key={stat.label} className="rounded-2xl bg-slate-50 px-3 py-3">
-            <p className="text-xs text-slate-600">{stat.label}</p>
+            <p className="flex items-center gap-1.5 text-xs text-slate-600">
+              <span aria-hidden className={`size-1.5 rounded-full ${stat.dot}`} />
+              {stat.label}
+            </p>
             <p className="mt-1 text-base font-semibold text-slate-900">
               <Money agorot={stat.agorot} {...(stat.signed ? { signed: true } : {})} />
             </p>
           </div>
         ))}
       </div>
+
+      <div className="mt-5">
+        <div className="mb-2 flex items-baseline justify-between text-sm">
+          <span className="text-slate-600">ניצול התקציב</span>
+          <span className="num font-semibold text-slate-900">
+            {Math.round(budgetProgress.spentSharePct)}%
+          </span>
+        </div>
+        <BudgetMeter
+          spentPct={budgetProgress.spentSharePct}
+          elapsedPct={budgetProgress.monthElapsedPct}
+          tone={budgetTone}
+        />
+        <p className="mt-2 text-xs text-slate-600">הקו הדק מסמן כמה מהחודש כבר עבר.</p>
+      </div>
+
       <div className="mt-3 divide-y divide-slate-100">
         <Row label="תקציב החודש">
           <Money agorot={budgetPlan.monthlySpendAgorot} />
@@ -384,26 +529,26 @@ export function Dashboard({
   const quickActions = (
     <Card>
       <CardTitle>פעולות מהירות</CardTitle>
-      <div className="grid grid-cols-2 gap-2.5">
-        <button type="button" onClick={onAddTransaction} className={tileClass(true)}>
-          <TileIcon name="plus" primary />
-          <span>
+      <div className="grid grid-cols-4 gap-1">
+        <button type="button" onClick={onAddTransaction} className={QUICK_ITEM}>
+          <QuickIcon name="plus" primary />
+          <span className={QUICK_LABEL}>
             <span className="sr-only">+ </span>עסקה
           </span>
         </button>
-        <button type="button" onClick={onAsk} className={tileClass(false)}>
-          <TileIcon name="calculator" />
-          אפשר לקנות?
+        <button type="button" onClick={onAsk} className={QUICK_ITEM}>
+          <QuickIcon name="calculator" />
+          <span className={QUICK_LABEL}>אפשר לקנות?</span>
         </button>
-        <Link to="/expected-income" className={tileClass(false)}>
-          <TileIcon name="wallet" />
-          <span>
+        <Link to="/expected-income" className={QUICK_ITEM}>
+          <QuickIcon name="wallet" />
+          <span className={QUICK_LABEL}>
             <span className="sr-only">+ </span>הכנסה צפויה
           </span>
         </Link>
-        <Link to="/backup" className={tileClass(false)}>
-          <TileIcon name="save" />
-          גיבוי
+        <Link to="/backup" className={QUICK_ITEM}>
+          <QuickIcon name="save" />
+          <span className={QUICK_LABEL}>גיבוי</span>
         </Link>
       </div>
     </Card>
@@ -419,109 +564,55 @@ export function Dashboard({
 
   // ── הפריסות ─────────────────────────────────────────────────────
 
-  /** מובייל — בדיוק הסדר של גרסה 1.0. */
+  /** עוטף כרטיס בכניסה מדורגת. `null` נשאר `null` — בלי עטיפה ריקה. */
+  const rise = (key: string, node: ReactNode, index: number) =>
+    node ? (
+      <div key={key} className="animate-rise" style={stagger(index)}>
+        {node}
+      </div>
+    ) : null;
+
+  /**
+   * מובייל — הסדר של גרסה 1.0, מתחת לבאנר.
+   *
+   * ⚠️ `-mt-16` מעלה את הכרטיסים לתוך הריווח התחתון של הבאנר (`pb-20`),
+   * כך ש"בטוח להוציא" חופף אותו. `z-10` שומר אותם מעליו.
+   */
   const mobileLayout: ReactNode = (
     <>
-      {balanceCard}
-      {safeToSpendCard}
-      {reserveCard}
-      {goalCard}
-      {alertsSection}
-      <BackupReminderBanner />
-      <SyncBanner />
-      <StorageBanner />
-      {monthCard}
-      {quickActions}
-      {emptyState}
+      {rise('hero', hero, 0)}
+      <div className="relative z-10 -mt-16 space-y-4">
+        {rise('safe', safeToSpendCard, 1)}
+        {rise('reserve', reserveCard, 2)}
+        {rise('goal', goalCard, 3)}
+        {rise('alerts', alertsSection, 4)}
+        <BackupReminderBanner />
+        <SyncBanner />
+        <StorageBanner />
+        {rise('month', monthCard, 5)}
+        {rise('quick', quickActions, 6)}
+        {emptyState}
+      </div>
     </>
   );
 
-  /**
-   * דסקטופ — שורת KPI ואז שתי עמודות.
-   *
-   * ⚠️ ארבעת המספרים חוזרים גם בכרטיסים שמתחת, וזה בכוונה: השורה
-   * העליונה עונה על "כמה?" במבט אחד, והכרטיסים עונים על "למה?".
-   * שניהם נגזרים מאותו אובייקט, ולכן אינם יכולים להיפרד.
-   */
+  /** דסקטופ — הבאנר עם שלושת המדדים, ומתחתיו שתי עמודות. */
   const desktopLayout: ReactNode = (
     <>
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4 xl:gap-5">
-        <KpiCard
-          tone="hero"
-          label="יש לך"
-          value={<Money agorot={balance.totalAgorot} />}
-          sub={
-            <>
-              בנק <Money agorot={bank?.balanceAgorot ?? 0} className="font-semibold text-white" />
-              <span aria-hidden className="mx-2 text-white/60">
-                ·
-              </span>
-              מזומן <Money agorot={cash?.balanceAgorot ?? 0} className="font-semibold text-white" />
-            </>
-          }
-        />
-        <KpiCard
-          label="בטוח להוציא עכשיו"
-          value={
-            safeToSpend.isOverspent ? (
-              <span className="text-2xl text-caution-600">חריגה</span>
-            ) : (
-              <span className="text-accent">
-                <Money agorot={safeToSpend.nowAgorot} />
-              </span>
-            )
-          }
-          sub={
-            <>
-              השבוע <Money agorot={safeToSpend.weekAgorot} className="font-semibold text-slate-900" />{' '}
-              · <span className="num">{safeToSpend.daysLeftInMonth}</span> ימים בחודש
-            </>
-          }
-        />
-        <KpiCard
-          label="שמור לחודשים הבאים"
-          value={<Money agorot={seasonal.reservedAgorot} />}
-          sub={
-            seasonal.allocation ? (
-              <>
-                הקצבה חודשית{' '}
-                <Money
-                  agorot={seasonal.allocation.monthlyAllowanceAgorot}
-                  className="font-semibold text-slate-900"
-                />
-              </>
-            ) : (
-              'אין כרגע כסף עונתי בצד'
-            )
-          }
-        />
-        <KpiCard
-          label="היעד"
-          value={
-            <span className="num sensitive text-accent">{goalProgress.progressPct}%</span>
-          }
-          sub={
-            <>
-              נשאר <Money agorot={goalProgress.gapAgorot} className="font-semibold text-slate-900" />{' '}
-              מתוך <Money agorot={goalProgress.targetAgorot} />
-            </>
-          }
-        />
-      </div>
-
+      {rise('hero', hero, 0)}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Stack className="xl:col-span-2">
-          {safeToSpendCard}
-          {goalCard}
-          {monthCard}
+          {rise('safe', safeToSpendCard, 1)}
+          {rise('goal', goalCard, 2)}
+          {rise('month', monthCard, 3)}
         </Stack>
         <Stack>
-          {alertsSection}
+          {rise('alerts', alertsSection, 2)}
           <BackupReminderBanner />
           <SyncBanner />
           <StorageBanner />
-          {reserveCard}
-          {quickActions}
+          {rise('reserve', reserveCard, 3)}
+          {rise('quick', quickActions, 4)}
           {emptyState}
         </Stack>
       </div>
@@ -529,17 +620,7 @@ export function Dashboard({
   );
 
   return (
-    <Page
-      title="לוח הבקרה"
-      showTitle={false}
-      leading={header}
-      actions={
-        <DiscreetToggle
-          on={settings?.discreetMode ?? false}
-          onToggle={() => saveSettings(db, { discreetMode: !settings?.discreetMode })}
-        />
-      }
-    >
+    <Page title="לוח הבקרה" showTitle={false}>
       {isDesktop ? desktopLayout : mobileLayout}
 
       {/* ── פירוט החישוב ─────────────────────────────────────── */}
