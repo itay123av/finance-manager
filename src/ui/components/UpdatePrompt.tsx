@@ -1,39 +1,44 @@
 /**
  * עדכון לגרסה חדשה.
  *
- * ⚠️ **שני מסלולים, לפי הרגע שבו העדכון נמצא.**
+ * ⚠️ **מה היה שבור — נמצא בבדיקה ישירה מול האתר החי, לא בתיאוריה.**
  *
- * 1. **בעלייה — מוחל לבד.** גרסה שממתינה כשהאפליקציה רק נפתחה, לפני
- *    שהמשתמש נגע במשהו, מוחלת מיד: אין שום דבר מוקלד שאפשר לאבד.
+ * משתמש דיווח ש"זה נראה אותו הדבר" אחרי עדכון עיצוב. בסימולציה של
+ * הטלפון שלו: הדף טען את הקוד הישן, הגרסה החדשה הייתה מותקנת
+ * ו**ממתינה** — והבאנר "גרסה חדשה זמינה" **לא הופיע בכלל**.
  *
- *    בגרסאות קודמות גם זה חיכה ללחיצה על באנר. מי שפספס או דחה אותו
- *    נשאר על הגרסה הישנה בכל פתיחה — בלי שום סימן לכך. זה בדיוק מה
- *    שקרה: אחרי עדכון עיצוב, המשתמש דיווח ש"זה נראה אותו הדבר".
+ * הסיבה: מרוץ. הדפדפן מתחיל להתקין את הגרסה החדשה עוד לפני שהקומפוננטה
+ * הזו עולה. כשהיא בדקה, העובד החדש עוד לא היה "ממתין" — ואירוע
+ * `updatefound` כבר עבר. שני מסלולי הזיהוי פספסו, והמשתמש נשאר על
+ * הגרסה הישנה בכל פתיחה, בלי שום סימן.
  *
- * 2. **באמצע שימוש — שואלים.** החלפת הקוד טוענת מחדש את הדף. באמצע
- *    הזנת עסקה או מיפוי עמודות בייבוא זה היה מוחק את מה שהוקלד, בלי
- *    שהמשתמש יבין למה. כאן העדכון נשאר רגע שהוא בוחר.
+ * ⚠️ **התיקון בשתי שכבות:**
  *
- * ⚠️ חזרה לאפליקציה (למשל מאפליקציה אחרת בטלפון) בודקת אם יצאה גרסה
- * חדשה. אפליקציה מותקנת כמעט אף פעם לא "נסגרת" באמת, ובלי הבדיקה הזו
- * היא הייתה מגלה עדכון רק לעיתים רחוקות.
+ * 1. **הגרסה החדשה לא ממתינה יותר** (`registerType: 'autoUpdate'` ב-
+ *    `vite.config.ts` → skipWaiting + clientsClaim). היא משתלטת ברגע
+ *    שהותקנה, בלי תלות בקוד הדף. זה מה שמציל גם דף שרץ עם הקוד הישן
+ *    והשבור: הפתיחה הבאה שלו כבר מגיעה מהגרסה החדשה.
  *
- * ⚠️ מדובר בקוד האפליקציה בלבד. הנתונים יושבים ב-IndexedDB ואינם
- * מושפעים מהעדכון; מיגרציות סכמה מטופלות ב-`data/db.ts`.
+ * 2. **הדף מגיב להשתלטות** — `controllerchange`, שנשלח לדף עצמו:
+ *    - **בעלייה**, לפני שהמשתמש נגע במשהו → נטען מחדש מיד. אין מה לאבד.
+ *    - **באמצע שימוש** → באנר קטן. טעינה מחדש בכוח באמצע הזנת עסקה
+ *      הייתה מוחקת את מה שהוקלד.
  *
- * נכתב מול ה-API הגולמי של Service Worker ולא מול מודול וירטואלי של
- * תוסף הבנייה — כדי שהקומפוננטה תעבוד גם בבדיקות (שם אין `serviceWorker`
- * כלל) ולא תישבר בשדרוג התוסף.
+ * ⚠️ מה שעדיין אפשרי: השתלטות שקרתה עוד לפני שהקומפוננטה עלתה לא
+ * תיתפס כאן. במקרה הזה הדף הנוכחי נשאר על הקוד הישן — אבל הגרסה החדשה
+ * כבר פעילה, ולכן הפתיחה הבאה מגיעה ממנה. אין יותר "תקוע לתמיד".
+ *
+ * ⚠️ חזרה לאפליקציה בודקת אם יצאה גרסה חדשה. אפליקציה מותקנת כמעט אף
+ * פעם לא "נסגרת" באמת, ובלי הבדיקה הזו עדכון היה מתגלה רק לעיתים רחוקות.
+ *
+ * ⚠️ מדובר בקוד האפליקציה בלבד. הנתונים ב-IndexedDB אינם מושפעים.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from './ui';
 
 /** כמה זמן אחרי הטעינה עוד נחשב "עלייה", כל עוד לא הייתה אינטראקציה. */
 const STARTUP_WINDOW_MS = 12_000;
-
-/** אם העובד החדש לא השתלט תוך הזמן הזה — מציגים באנר במקום לחכות לנצח. */
-const APPLY_TIMEOUT_MS = 4_000;
 
 /** לא לבדוק עדכון בכל מעבר טאב — פעם בדקה מספיקה. */
 const RECHECK_INTERVAL_MS = 60_000;
@@ -53,56 +58,61 @@ function isStartup(): boolean {
   return !interacted && performance.now() - loadedAt < STARTUP_WINDOW_MS;
 }
 
-export function UpdatePrompt() {
-  const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
+export function UpdatePrompt({
+  reload = () => window.location.reload(),
+}: {
+  /** מוזרק בבדיקות. בפועל — טעינה מחדש של הדף. */
+  reload?: () => void;
+}) {
+  const [updated, setUpdated] = useState(false);
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const container = navigator.serviceWorker;
 
     let cancelled = false;
+    let reloading = false;
     let lastCheck = 0;
     let registrationRef: ServiceWorkerRegistration | null = null;
 
-    const apply = (worker: ServiceWorker) => {
-      // הדף נטען מחדש רק כשהעובד החדש באמת משתלט — לא לפני.
-      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), {
-        once: true,
-      });
-      worker.postMessage({ type: 'SKIP_WAITING' });
+    // ⚠️ בביקור הראשון אין controller, וההשתלטות הראשונה היא התקנה ולא
+    // עדכון. רק החלפה של controller שכבר היה נחשבת "גרסה חדשה".
+    const hadController = Boolean(container.controller);
 
-      // ⚠️ רשת ביטחון: אם משהו מנע את ההשתלטות, לא משאירים את המשתמש
-      // על גרסה ישנה בשקט — מציגים את הבאנר.
-      window.setTimeout(() => {
-        if (!cancelled) setWaiting(worker);
-      }, APPLY_TIMEOUT_MS);
+    const onControllerChange = () => {
+      if (cancelled || reloading || !hadController) return;
+      if (isStartup()) {
+        reloading = true;
+        reloadRef.current();
+      } else {
+        setUpdated(true);
+      }
     };
 
-    const offer = (worker: ServiceWorker) => {
-      if (cancelled) return;
-      if (isStartup()) apply(worker);
-      else setWaiting(worker);
+    /**
+     * עובד ממתין מבנייה ישנה, מלפני skipWaiting — מבקשים ממנו להשתלט.
+     * ההשתלטות עצמה מגיעה חזרה כ-`controllerchange` ומטופלת למעלה.
+     */
+    const nudge = (worker: ServiceWorker | null | undefined) => {
+      if (worker && container.controller) worker.postMessage({ type: 'SKIP_WAITING' });
+    };
+
+    const track = (worker: ServiceWorker | null | undefined) => {
+      worker?.addEventListener('statechange', () => {
+        if (worker.state === 'installed') nudge(worker);
+      });
     };
 
     const watch = (registration: ServiceWorkerRegistration) => {
       if (cancelled) return;
       registrationRef = registration;
-
-      // גרסה שכבר ממתינה — למשל כזו שהורדה בפעם הקודמת ולא הוחלה
-      if (registration.waiting && navigator.serviceWorker.controller) {
-        offer(registration.waiting);
-      }
-
-      registration.addEventListener('updatefound', () => {
-        const installing = registration.installing;
-        if (!installing) return;
-        installing.addEventListener('statechange', () => {
-          // `controller` קיים רק כשכבר רצה גרסה קודמת. בהתקנה ראשונה
-          // אין "עדכון" — יש התקנה, ואין על מה להודיע.
-          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-            offer(installing);
-          }
-        });
-      });
+      nudge(registration.waiting);
+      // ⚠️ המרוץ שגרם לתקלה: עובד שכבר באמצע התקנה ברגע שהגענו לכאן.
+      // `updatefound` שלו כבר עבר, ולכן עוקבים אחריו ישירות.
+      track(registration.installing);
+      registration.addEventListener('updatefound', () => track(registration.installing));
     };
 
     const onVisible = () => {
@@ -114,25 +124,27 @@ export function UpdatePrompt() {
       registrationRef.update().catch(() => undefined);
     };
 
-    void navigator.serviceWorker.getRegistration().then((registration) => {
+    container.addEventListener('controllerchange', onControllerChange);
+    document.addEventListener('visibilitychange', onVisible);
+
+    void container.getRegistration().then((registration) => {
       if (registration) {
         watch(registration);
         return;
       }
       // `injectRegister: auto` מבצע register רק באירוע `load`. בריצה
       // הראשונה הקומפוננטה עולה לפניו, ולכן getRegistration מחזיר undefined.
-      void navigator.serviceWorker.ready.then(watch);
+      void container.ready.then(watch);
     });
-
-    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       cancelled = true;
+      container.removeEventListener('controllerchange', onControllerChange);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
-  if (!waiting) return null;
+  if (!updated) return null;
 
   return (
     <div
@@ -140,25 +152,14 @@ export function UpdatePrompt() {
       className="fixed inset-x-0 bottom-24 z-50 mx-auto flex w-[min(28rem,calc(100%-2rem))] animate-sheet-in items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-surface px-4 py-3 elev-3 lg:bottom-8"
     >
       <div>
-        <p className="text-sm font-semibold text-slate-900">גרסה חדשה זמינה</p>
-        <p className="text-xs text-slate-600">הנתונים שלך לא מושפעים.</p>
+        <p className="text-sm font-semibold text-slate-900">האפליקציה עודכנה</p>
+        <p className="text-xs text-slate-600">רענון יציג את הגרסה החדשה. הנתונים לא מושפעים.</p>
       </div>
       <div className="flex shrink-0 gap-1">
-        <Button variant="ghost" onClick={() => setWaiting(null)}>
+        <Button variant="ghost" onClick={() => setUpdated(false)}>
           אחר כך
         </Button>
-        <Button
-          onClick={() => {
-            navigator.serviceWorker.addEventListener(
-              'controllerchange',
-              () => window.location.reload(),
-              { once: true },
-            );
-            waiting.postMessage({ type: 'SKIP_WAITING' });
-          }}
-        >
-          עדכן עכשיו
-        </Button>
+        <Button onClick={() => reloadRef.current()}>לרענן</Button>
       </div>
     </div>
   );
