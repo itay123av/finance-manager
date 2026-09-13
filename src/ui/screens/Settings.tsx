@@ -114,7 +114,7 @@ export function Settings() {
   }
 
   return (
-    <Page title="הגדרות" width="reading">
+    <Page title="הגדרות" icon="settings" subtitle="סכום ביטחון, יעד, נעילה ותצוגה" width="reading">
 
       {notice ? (
         <Card tone="brand">
@@ -253,7 +253,7 @@ export function Settings() {
           קוד בן {MIN_PIN_LENGTH}–{MAX_PIN_LENGTH} ספרות שמונע ממי שלוקח את הטלפון לרגע לראות מיד
           את הנתונים.
         </p>
-        <p className="mb-3 flex gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+        <p className="mb-3 flex gap-2 rounded-2xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
           <Icon name="alert-triangle" className="mt-0.5 size-4 text-caution-600" />
           <span>
             קוד הנעילה מונע גישה מזדמנת לאפליקציה.{' '}
@@ -378,7 +378,7 @@ export function Settings() {
         title="קוד נעילה"
       >
         <div className="space-y-4">
-          <p className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+          <p className="rounded-2xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
             הקוד עצמו לא נשמר — נשמר ממנו ערך אימות שאי אפשר להפוך בחזרה. המשמעות: אם תשכח אותו,
             אין דרך לשחזר, והכניסה תדרוש מחיקת הנתונים ושחזור מגיבוי.
           </p>

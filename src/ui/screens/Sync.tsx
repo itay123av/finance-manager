@@ -104,7 +104,7 @@ export function Sync() {
   if (checking && !status && !connected) return <LoadingState label="בודק מצב סנכרון…" />;
 
   return (
-    <Page title="סנכרון" width="reading">
+    <Page title="סנכרון" icon="cloud" subtitle="אותם נתונים בטלפון ובמחשב, מוצפנים" width="reading">
       {error ? <Banner tone="caution" title="לא הצלחנו" body={error} /> : null}
 
       {!connected ? (

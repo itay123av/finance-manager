@@ -188,7 +188,18 @@ export function Backup() {
   }
 
   return (
-    <Page title="גיבוי ושחזור" width="reading">
+    <Page
+      title="גיבוי ושחזור"
+      icon="save"
+      subtitle="ההגנה היחידה מאובדן המכשיר"
+      width="reading"
+      stats={[
+        {
+          label: 'הגיבוי האחרון',
+          value: snapshot.lastBackupDate ? formatDateHe(snapshot.lastBackupDate) : 'עוד לא',
+        },
+      ]}
+    >
 
       {busy ? <ProgressState label={busy} pct={null} /> : null}
 
@@ -276,7 +287,7 @@ export function Backup() {
               role="radio"
               aria-checked={exportMode === 'encrypted'}
               onClick={() => setExportMode('encrypted')}
-              className={`w-full rounded-xl border p-3 text-start ${
+              className={`w-full rounded-2xl border p-3.5 text-start ${
                 exportMode === 'encrypted'
                   ? 'border-brand-700 bg-brand-50'
                   : 'border-slate-200 bg-surface'
@@ -294,7 +305,7 @@ export function Backup() {
               role="radio"
               aria-checked={exportMode === 'plain'}
               onClick={() => setExportMode('plain')}
-              className={`w-full rounded-xl border p-3 text-start ${
+              className={`w-full rounded-2xl border p-3.5 text-start ${
                 exportMode === 'plain' ? 'border-slate-700 bg-slate-50' : 'border-slate-200 bg-surface'
               }`}
             >
@@ -380,7 +391,7 @@ export function Backup() {
 
           {preview ? (
             <>
-              <div className="rounded-xl bg-slate-50 p-3">
+              <div className="rounded-2xl bg-slate-50 p-3.5">
                 <Row label="נוצר בתאריך">{formatDateHe(preview.createdAt.slice(0, 10))}</Row>
                 <Row label="עסקאות">
                   <span className="num">{preview.counts.transactions ?? 0}</span>
@@ -409,7 +420,7 @@ export function Backup() {
               </p>
 
               {hasData ? (
-                <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+                <label className="flex items-start gap-3 rounded-2xl border border-slate-200/70 p-3.5 text-sm text-slate-700">
                   <input
                     type="checkbox"
                     checked={backupFirst}

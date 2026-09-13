@@ -145,7 +145,7 @@ export function Review() {
 
   if (!reviews) {
     return (
-      <Page title="סיכום">
+      <Page title="סיכום" icon="calendar" subtitle="מה קרה השבוע ומה קרה החודש">
         <Card>
           <p className="text-sm text-slate-600">אחרי כמה עסקאות יופיע כאן סיכום.</p>
         </Card>
@@ -156,7 +156,7 @@ export function Review() {
   const active = tab === 'week' ? reviews.week : reviews.month;
 
   return (
-    <Page title="סיכום">
+    <Page title="סיכום" icon="calendar" subtitle="מה קרה השבוע ומה קרה החודש">
 
       <div role="tablist" aria-label="תקופת הסיכום" className="flex gap-2">
         {(
@@ -174,7 +174,7 @@ export function Review() {
             className={`min-h-11 flex-1 rounded-xl border text-sm font-semibold transition ${
               tab === option.id
                 ? 'border-brand-700 bg-brand-50 text-accent-strong'
-                : 'border-slate-300 bg-surface text-slate-600'
+                : 'border-slate-200 bg-surface text-slate-600 elev-1 hover:border-slate-300'
             }`}
           >
             {option.label}

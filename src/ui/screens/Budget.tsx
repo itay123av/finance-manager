@@ -11,6 +11,7 @@
 import { Grid, Page } from '../components/layout';
 import { useMemo, useState } from 'react';
 import { useAppData } from '../AppData';
+import { AnimatedMoney } from '../motion';
 import { db } from '../../data/db';
 import { saveSettings } from '../../data/repositories';
 import { buildBudgetPlan, type ConcretePlanId } from '../../core/budget';
@@ -93,7 +94,22 @@ export function Budget() {
   const activePlan = snapshot.settings.budgetPlanId;
 
   return (
-    <Page title={`תקציב ${formatMonthHe(monthOf(snapshot.today))}`}>
+    <Page
+      title={`תקציב ${formatMonthHe(monthOf(snapshot.today))}`}
+      icon="target"
+      subtitle="כמה מתוכנן, כמה יצא, ומה נשאר"
+      stats={[
+        {
+          label: 'תקציב החודש',
+          value: <AnimatedMoney agorot={dashboard.budgetPlan.monthlySpendAgorot} />,
+        },
+        { label: 'נשאר', value: <AnimatedMoney agorot={dashboard.budgetProgress.remainingAgorot} /> },
+        {
+          label: 'ניצול',
+          value: <span className="num">{Math.round(dashboard.budgetProgress.spentSharePct)}%</span>,
+        },
+      ]}
+    >
       {/* עמודה אחת עד 1024, שתיים מעליו. הסדר בגריד זהה לסדר ב-DOM,
           ולכן פריסת המובייל נשמרת בדיוק. */}
       <Grid columns={2}>
@@ -156,10 +172,10 @@ export function Budget() {
                 type="button"
                 onClick={() => saveSettings(db, { budgetPlanId: id })}
                 aria-pressed={active}
-                className={`w-full rounded-xl border p-3 text-start transition ${
+                className={`w-full rounded-2xl border p-3.5 text-start transition ${
                   active
                     ? 'border-brand-700 bg-brand-50'
-                    : 'border-slate-200 bg-surface hover:bg-slate-50'
+                    : 'border-slate-200 bg-surface elev-1 hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-baseline justify-between">
@@ -195,7 +211,7 @@ export function Budget() {
           {comparing ? 'פחות פרטים' : 'מה ההבדל ביניהם?'}
         </Button>
         {comparing ? (
-          <div className="mt-2 space-y-2 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+          <div className="mt-2 space-y-2 rounded-2xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
             <p>
               <strong>שמרני</strong> — 75% ממה שאתה רגיל להוציא. מגיע ליעד מהר יותר, אבל דורש
               ויתורים אמיתיים.
@@ -283,7 +299,7 @@ export function Budget() {
         )}
 
         {categoryBudget.noteHe && categoryBudget.lines.length > 0 ? (
-          <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+          <p className="mt-3 rounded-2xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
             {categoryBudget.noteHe}
           </p>
         ) : null}
@@ -325,7 +341,7 @@ export function Budget() {
       <Card>
         <CardTitle icon="confetti">בילויים החודש</CardTitle>
         <div className="flex items-baseline justify-between">
-          <span className="text-2xl font-bold text-slate-900">
+          <span className="num-display text-[1.75rem] leading-none font-semibold text-slate-900">
             <Money agorot={clampMin0(dashboard.fun.remainingAgorot)} />
           </span>
           <span className="text-sm text-slate-500">

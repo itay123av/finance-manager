@@ -152,11 +152,11 @@ export function PairingCodeCard({ code }: { code: string }) {
       </p>
 
       {shown ? (
-        <p className="num mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center font-mono text-lg tracking-widest text-slate-900">
+        <p className="num mt-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-center font-mono text-lg tracking-widest text-slate-900">
           {formatPairingCode(code)}
         </p>
       ) : (
-        <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-sm text-slate-500">
+        <p className="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-center text-sm text-slate-500">
           הקוד מוסתר
         </p>
       )}
@@ -176,7 +176,7 @@ export function PairingCodeCard({ code }: { code: string }) {
         </Button>
       </div>
 
-      <div className="mt-4 rounded-xl border border-caution-300 bg-caution-100/40 p-3">
+      <div className="mt-4 rounded-2xl border border-caution-300/60 bg-caution-100/40 p-4">
         <p className="text-sm font-semibold text-slate-800">הקוד הזה הוא המפתח לנתונים</p>
         <p className="mt-1 text-sm leading-relaxed text-slate-600">
           מי שמקבל אותו יכול לראות את כל ההיסטוריה הפיננסית שלך. אל תשלח אותו בצ׳אט ואל תצלם

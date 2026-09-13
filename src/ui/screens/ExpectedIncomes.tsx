@@ -177,7 +177,7 @@ export function ExpectedIncomes() {
   );
 
   return (
-    <Page title="הכנסות צפויות" width="reading">
+    <Page title="הכנסות צפויות" icon="wallet" subtitle="כסף שבדרך — ולמה הוא עוד לא נספר" width="reading">
 
       <Card tone="brand">
         <p className="text-sm leading-relaxed text-accent-strong">

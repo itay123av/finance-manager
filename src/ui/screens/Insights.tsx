@@ -122,7 +122,7 @@ export function Insights() {
 
   if (!analysis) {
     return (
-      <Page title="תובנות">
+      <Page title="תובנות" icon="lightbulb" subtitle="דפוסים שהמערכת מזהה בהוצאות שלך">
         <Card>
           <p className="text-sm leading-relaxed text-slate-600">
             אחרי שיהיו כמה חודשים של נתונים, כאן יופיעו הדפוסים שהמערכת מזהה.
@@ -139,8 +139,13 @@ export function Insights() {
   return (
     <Page
       title="תובנות"
+      icon="lightbulb"
+      subtitle="דפוסים שהמערכת מזהה בהוצאות שלך"
       actions={
-        <Link to="/review" className="inline-block py-2 text-sm font-semibold text-accent">
+        <Link
+          to="/review"
+          className="glass inline-flex min-h-11 items-center rounded-full px-4 text-sm font-semibold text-white transition hover:bg-white/15"
+        >
           סיכום שבועי וחודשי ←
         </Link>
       }

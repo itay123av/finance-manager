@@ -10,7 +10,7 @@
 import { Page } from '../components/layout';
 import { Link } from 'react-router-dom';
 import { APP_VERSION } from '../../version';
-import { Card, CardTitle } from '../components/ui';
+import { Card, CardTitle, Medallion } from '../components/ui';
 import { Icon, type IconName } from '../components/icons';
 
 interface Item {
@@ -65,7 +65,7 @@ const SECTIONS: { title: string; items: Item[] }[] = [
 
 export function More() {
   return (
-    <Page title="עוד" width="reading">
+    <Page title="עוד" icon="more" subtitle="כל שאר הכלים במקום אחד" width="reading">
 
       {SECTIONS.map((section) => (
         <Card key={section.title}>
@@ -75,14 +75,14 @@ export function More() {
               <li key={item.to}>
                 <Link
                   to={item.to}
-                  className="flex min-h-14 items-center gap-3 border-b border-slate-100 py-2 last:border-0"
+                  className="group flex min-h-16 items-center gap-3.5 border-b border-slate-100 py-2.5 last:border-0"
                 >
-                  <Icon name={item.icon} className="size-5 text-slate-500" />
+                  <Medallion icon={item.icon} tone="brand" className="size-10" />
                   <span className="flex-1">
                     <span className="block text-sm font-semibold text-slate-800">{item.label}</span>
                     <span className="block text-xs text-slate-500">{item.note}</span>
                   </span>
-                  <Icon name="chevron-inline" className="size-4 text-slate-400" />
+                  <Icon name="chevron-inline" className="size-4 text-slate-400 transition group-hover:-translate-x-0.5" />
                 </Link>
               </li>
             ))}

@@ -14,12 +14,12 @@ export function Privacy() {
   const { snapshot } = useAppData();
 
   return (
-    <Page title="מה נשמר ומה לא" width="reading">
+    <Page title="מה נשמר ומה לא" icon="lock" subtitle="בדיוק מה המערכת שומרת — ומה לא" width="reading">
 
       <Card tone="brand">
         <p className="text-sm leading-relaxed text-accent-strong">
-          כל הנתונים שלך נשמרים <strong>רק במכשיר הזה</strong>, באחסון של הדפדפן.
-          אין שרת שמחזיק את העסקאות שלך, ואין לאפליקציה דרך לשלוח אותן לשום מקום.
+          הנתונים שלך נשמרים <strong>במכשיר הזה</strong>, באחסון של הדפדפן. אם הפעלת סנכרון,
+          נשלח לענן רק עותק <strong>מוצפן</strong> — לשרת אין את המפתח, והוא לא יכול לראות סכומים, שמות או קטגוריות.
         </p>
       </Card>
 

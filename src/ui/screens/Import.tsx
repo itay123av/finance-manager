@@ -193,7 +193,7 @@ export function Import() {
       : null;
 
   return (
-    <Page title="ייבוא מהבנק">
+    <Page title="ייבוא מהבנק" icon="download" subtitle="עו״ש או פירוט כרטיס — הקובץ נקרא רק במכשיר">
 
       {/* ── הסבר ─────────────────────────────────────────────── */}
       {!preview && !result ? (
@@ -411,7 +411,7 @@ export function Import() {
             <p className="text-sm font-semibold text-slate-700">איך לקבוע?</p>
 
             {preview.direction.candidates.length > 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-surface p-3">
+              <div className="rounded-2xl border border-slate-200/70 bg-surface p-3.5 elev-1">
                 <p className="mb-2 text-xs text-slate-500">
                   לפי עמודה בקובץ — שורה תיחשב הכנסה כשהעמודה מכילה את הערך:
                 </p>

@@ -73,7 +73,7 @@ export function Categories() {
 
   function renderList(list: Category[], archivedList: boolean) {
     return (
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-surface">
+      <div className="overflow-hidden rounded-[1.25rem] border border-slate-200/70 bg-surface elev-1">
         {list.map((c, i) => (
           <div
             key={c.id}
@@ -125,7 +125,7 @@ export function Categories() {
   }
 
   return (
-    <Page title="קטגוריות" width="reading">
+    <Page title="קטגוריות" icon="tag" subtitle="לערוך, להוסיף, לארכב" width="reading">
 
       {notice ? (
         <Card tone="brand">

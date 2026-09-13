@@ -94,7 +94,7 @@ export function IncomeIdeas() {
   }
 
   return (
-    <Page title="רעיונות להכנסה" width="reading">
+    <Page title="רעיונות להכנסה" icon="sprout" subtitle="דרכים מציאותיות להרוויח בגיל שלך" width="reading">
 
       <Card tone="brand">
         <p className="text-sm leading-relaxed text-accent-strong">
@@ -218,7 +218,7 @@ export function IncomeIdeas() {
         title={planFor ? `תוכנית: ${planFor.titleHe}` : 'תוכנית הכנסה'}
       >
         <div className="space-y-4">
-          <p className="rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-600">
+          <p className="rounded-2xl bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-600">
             זה נשמר כהכנסה <strong>אפשרית</strong>. היא תופיע בתחזית כתרחיש, ולא תיכנס ל״בטוח
             להוציא״ — עד שתסמן שהכסף נכנס בפועל.
           </p>

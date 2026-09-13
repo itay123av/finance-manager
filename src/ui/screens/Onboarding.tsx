@@ -14,6 +14,7 @@ import { db } from '../../data/db';
 import { completeOnboarding } from '../../data/repositories';
 import {
   AmountInput,
+  BrandMark,
   Button,
   buttonClass,
   Card,
@@ -79,14 +80,20 @@ export function Onboarding() {
   }
 
   return (
-    <main className="mx-auto max-w-md space-y-5 p-5 pb-24">
-      <header className="pt-4">
-        <h1 className="text-2xl font-bold text-slate-900">נתחיל</h1>
-        <p className="mt-1 text-sm leading-relaxed text-slate-600">
-          חמש שאלות קצרות, ואז תראה את התמונה המלאה.
-          <br />
-          הנתונים נשמרים רק במכשיר הזה.
-        </p>
+    <main className="stagger mx-auto max-w-md space-y-5 p-5 pb-24">
+      {/* הרושם הראשון של האפליקציה — אותו באנר כמו בשאר המסכים. */}
+      <header className="hero-surface hero-sheen relative isolate -mx-5 -mt-5 overflow-hidden rounded-b-[2rem] px-6 pt-[max(2.5rem,env(safe-area-inset-top))] pb-8 text-white sm:mx-0 sm:mt-0 sm:rounded-[1.75rem]">
+        <span aria-hidden className="aurora-blob aurora-a" />
+        <span aria-hidden className="aurora-blob aurora-b" />
+        <div className="relative">
+          <BrandMark className="size-12" />
+          <h1 className="mt-5 text-[2rem] leading-tight font-bold tracking-tight">נתחיל</h1>
+          <p className="mt-2 text-sm leading-relaxed text-white/90">
+            חמש שאלות קצרות, ואז תראה את התמונה המלאה.
+            <br />
+            הנתונים נשמרים רק במכשיר הזה.
+          </p>
+        </div>
       </header>
 
       {/*

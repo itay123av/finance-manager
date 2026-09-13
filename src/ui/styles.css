@@ -488,3 +488,50 @@ body {
 [data-theme='dark'] .aurora-a {
   background: oklch(0.55 0.14 160 / 0.38);
 }
+
+/* ============================================================
+   v3 — כניסה מדורגת בכל המסכים
+   ============================================================
+   כל ילד ישיר של .stagger עולה בתורו. Page עוטף בזה את התוכן של
+   כל מסך, ולכן אין צורך לסמן כרטיס-כרטיס.
+
+   ⚠️ גיליונות (.fixed) מוחרגים. גיליון שנפתח הוא ילד של אותו מיכל,
+   ואנימציית העלייה הייתה דורסת את אנימציית הפתיחה שלו.
+
+   ⚠️ ההשהיה נעצרת בשבעה ילדים. מסך עם עשרים כרטיסים לא אמור לחכות
+   שנייה ורבע עד שהאחרון מופיע.
+   ============================================================ */
+.stagger > :not(.fixed) {
+  animation: rise 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.stagger > :nth-child(2) {
+  animation-delay: 60ms;
+}
+.stagger > :nth-child(3) {
+  animation-delay: 120ms;
+}
+.stagger > :nth-child(4) {
+  animation-delay: 180ms;
+}
+.stagger > :nth-child(5) {
+  animation-delay: 240ms;
+}
+.stagger > :nth-child(6) {
+  animation-delay: 300ms;
+}
+.stagger > :nth-child(n + 7) {
+  animation-delay: 360ms;
+}
+
+/* ⚠️ מי שביקש פחות תנועה: גם ההשהיה מתאפסת, לא רק משך האנימציה.
+   אחרת תוכן עם השהיה היה נשאר שקוף לגמרי עד 360ms — מסך שנראה ריק. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-delay: 0s !important;
+  }
+  .stagger > * {
+    animation: none !important;
+  }
+}

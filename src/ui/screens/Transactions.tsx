@@ -19,6 +19,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAppData } from '../AppData';
+import { AnimatedMoney } from '../motion';
 import { useIsDesktop } from '../useMediaQuery';
 import { useToast } from '../Toast';
 import { db } from '../../data/db';
@@ -35,8 +36,34 @@ import { Icon } from '../components/icons';
 type DirectionFilter = 'all' | 'income' | 'expense';
 type SourceFilter = 'all' | 'bank' | 'cash' | 'card';
 
+/**
+ * עיגול בצבע הקטגוריה, עם האות הראשונה של שם העסקה.
+ *
+ * ⚠️ `aria-hidden` — השם והקטגוריה כבר כתובים בשורה. העיגול הוא דרך
+ * לסרוק רשימה ארוכה בעין, לא מידע נוסף.
+ *
+ * ⚠️ צבע האות מעורבב עם `slate-900`, שמתהפך בין הערכות: בבהיר האות
+ * מתכהה ובכהה מתבהרת. צבע הקטגוריה הגולמי (למשל ענבר) על רקע ענבר בהיר
+ * היה כמעט בלתי נראה.
+ */
+function CategoryAvatar({ color, label }: { color: string | undefined; label: string }) {
+  const tint = color ?? 'var(--color-slate-500)';
+  return (
+    <span
+      aria-hidden="true"
+      className="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+      style={{
+        background: `color-mix(in oklab, ${tint} 18%, transparent)`,
+        color: `color-mix(in oklab, ${tint} 55%, var(--color-slate-900))`,
+      }}
+    >
+      {label.trim().charAt(0)}
+    </span>
+  );
+}
+
 export function Transactions({ onAddTransaction }: { onAddTransaction: () => void }) {
-  const { snapshot, loading } = useAppData();
+  const { snapshot, dashboard, loading } = useAppData();
   const isDesktop = useIsDesktop();
   const toast = useToast();
   const [month, setMonth] = useState<string>('all');
@@ -69,6 +96,10 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
   const categories = snapshot?.categories ?? [];
   const categoryName = useMemo(
     () => new Map(categories.map((c) => [c.id, c.name])),
+    [categories],
+  );
+  const categoryColor = useMemo(
+    () => new Map(categories.map((c) => [c.id, c.color])),
     [categories],
   );
   const accountName = useMemo(
@@ -316,7 +347,7 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
       <h2 className="mb-1.5 px-1 text-xs font-semibold text-slate-500">
         {formatWeekdayHe(date)} · {formatDateHe(date)}
       </h2>
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-surface">
+      <div className="overflow-hidden rounded-[1.25rem] border border-slate-200/70 bg-surface elev-1">
         {items.map((t, i) => {
           const cardCharge = detectCardCharge(t.merchant);
           const detail = detailByCharge.get(t.id) ?? [];
@@ -325,6 +356,10 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
           return (
             <div key={t.id} className={i > 0 ? 'border-t border-slate-100' : ''}>
               <div className="flex items-center gap-3 p-3">
+                <CategoryAvatar
+                  color={categoryColor.get(t.categoryId)}
+                  label={t.merchant || categoryName.get(t.categoryId) || '?'}
+                />
                 <div className="min-w-0 flex-1">
                   {/* חיוב כרטיס עם פירוט מוצג כשם הכרטיס, ופותח את הפירוט */}
                   {cardCharge && detail.length > 0 ? (
@@ -407,7 +442,19 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
   ));
 
   return (
-    <Page title="עסקאות">
+    <Page
+      title="עסקאות"
+      icon="receipt"
+      subtitle="כל מה שנכנס ויצא, לפי תאריך"
+      {...(dashboard
+        ? {
+            stats: [
+              { label: 'נכנס החודש', value: <AnimatedMoney agorot={dashboard.month.incomeAgorot} /> },
+              { label: 'יצא החודש', value: <AnimatedMoney agorot={dashboard.month.expenseAgorot} /> },
+            ],
+          }
+        : {})}
+    >
       <Card>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
           <Select

@@ -104,7 +104,7 @@ export function CanIAfford({
                 key={quick}
                 type="button"
                 onClick={() => setAmount(String(quick))}
-                className="min-h-11 flex-1 rounded-xl border border-slate-300 bg-surface px-3 text-sm font-semibold text-slate-700"
+                className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-surface px-3 text-sm font-semibold text-slate-700 elev-1 transition hover:border-slate-300"
               >
                 <span className="num">₪{quick}</span>
               </button>

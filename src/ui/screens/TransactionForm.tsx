@@ -158,7 +158,7 @@ export function TransactionForm({ open, onClose, restoreFocusTo, editing }: Tran
               className={`min-h-11 flex-1 rounded-xl border text-sm font-semibold transition ${
                 type === option.value
                   ? 'border-brand-700 bg-brand-50 text-accent-strong'
-                  : 'border-slate-300 bg-surface text-slate-600'
+                  : 'border-slate-200 bg-surface text-slate-600 elev-1 hover:border-slate-300'
               }`}
             >
               {option.label}
@@ -202,7 +202,7 @@ export function TransactionForm({ open, onClose, restoreFocusTo, editing }: Tran
         {showMore ? (
           // ⚠️ שתי עמודות רק מ-`sm`. בטלפון שדה חצי-רוחב הוא שדה
           // שמקלדת מכסה וקשה לכוון אליו.
-          <div className="grid gap-4 rounded-xl bg-slate-50 p-3 sm:grid-cols-2">
+          <div className="grid gap-4 rounded-2xl bg-slate-50 p-3.5 sm:grid-cols-2">
             <Field label="תאריך">
               {(id) => (
                 <TextInput

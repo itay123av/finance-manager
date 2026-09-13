@@ -99,11 +99,18 @@ export function AppLockGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-6">
-      <div className="text-center">
-        <Icon name="lock" className="mx-auto size-10 text-slate-500" />
-        <h1 className="mt-3 text-2xl font-bold text-slate-900">האפליקציה נעולה</h1>
-        <p className="mt-1 text-sm text-slate-500">הזן את קוד הנעילה כדי להמשיך.</p>
+    // ⚠️ המסך כולו הוא משטח הגיבור. זה המסך הראשון שרואים בכל פתיחה
+    // כשיש נעילה, ולכן הוא לא יכול להיות המסך הכי פחות מעוצב באפליקציה.
+    <main className="hero-surface relative isolate flex min-h-dvh flex-col justify-center overflow-hidden p-6">
+      <span aria-hidden className="aurora-blob aurora-a" />
+      <span aria-hidden className="aurora-blob aurora-b" />
+      <div className="relative mx-auto flex w-full max-w-md animate-rise flex-col gap-4">
+      <div className="text-center text-white">
+        <span aria-hidden className="glass mx-auto flex size-16 items-center justify-center rounded-3xl">
+          <Icon name="lock" className="size-8" />
+        </span>
+        <h1 className="mt-4 text-[1.75rem] leading-tight font-bold tracking-tight">האפליקציה נעולה</h1>
+        <p className="mt-1 text-sm text-white/90">הזן את קוד הנעילה כדי להמשיך.</p>
       </div>
 
       <Card>
@@ -129,7 +136,7 @@ export function AppLockGate({ children }: { children: ReactNode }) {
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
             aria-describedby={error ? 'lock-error' : undefined}
             aria-invalid={error !== null}
-            className="min-h-14 w-full rounded-xl border border-slate-300 bg-surface px-3 text-center text-2xl tracking-[0.5em] tabular-nums"
+            className="min-h-14 w-full rounded-2xl border border-slate-200 bg-surface px-3 text-center text-2xl tracking-[0.5em] text-slate-900 tabular-nums elev-1 transition focus:border-brand-700 focus:ring-4 focus:ring-brand-500/20 focus:outline-none"
           />
           {error ? (
             <p id="lock-error" role="alert" className="text-sm font-medium text-danger">
@@ -148,9 +155,13 @@ export function AppLockGate({ children }: { children: ReactNode }) {
           הנעילה לכפתור. הקוד עצמו לא נשמר, ולכן אין דרך להוכיח זהות —
           מלבד החזקה בקובץ הגיבוי. לכן: מוחקים, ומשחזרים מגיבוי. */}
       <div className="text-center">
-        <Button variant="ghost" onClick={() => setResetting(true)}>
+        <button
+          type="button"
+          onClick={() => setResetting(true)}
+          className="glass min-h-11 rounded-full px-5 text-sm font-semibold text-white transition hover:bg-white/15"
+        >
           שכחתי את הקוד
-        </Button>
+        </button>
       </div>
 
       <ConfirmDialog
@@ -178,6 +189,7 @@ export function AppLockGate({ children }: { children: ReactNode }) {
           setUnlocked(true);
         }}
       />
+      </div>
     </main>
   );
 }

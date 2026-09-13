@@ -77,7 +77,7 @@ export function Forecast() {
    */
   if (scenarios.length === 0) {
     return (
-      <Page title="תחזית">
+      <Page title="תחזית" icon="trending-up" subtitle="לאן היתרה הולכת — לפי תרחישים">
         <EmptyState
           title="צריך עוד קצת היסטוריה"
           body="תחזית נבנית מהקצב שלך — כמה נכנס וכמה יוצא בחודש. אחרי שיהיו נתונים של חודש-חודשיים היא תופיע כאן."
@@ -114,7 +114,7 @@ export function Forecast() {
     points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.balanceAgorot)}`).join(' ');
 
   return (
-    <Page title="תחזית">
+    <Page title="תחזית" icon="trending-up" subtitle="לאן היתרה הולכת — לפי תרחישים">
 
       {/* ── מצב היעד ─────────────────────────────────────────── */}
       {stability ? (
@@ -150,7 +150,7 @@ export function Forecast() {
                   else setPrimary(scenario.scenarioId);
                 }}
                 aria-pressed={isPrimary || isCompare}
-                className={`min-h-14 rounded-xl border p-2 text-start text-sm transition ${
+                className={`min-h-14 rounded-2xl border p-2.5 text-start text-sm transition ${
                   isPrimary
                     ? 'border-brand-700 bg-brand-50 font-semibold text-accent-strong'
                     : isCompare
