@@ -6,6 +6,10 @@
  *
  * הגיבוי עבר למסך משלו (`/backup`): הוא ההגנה היחידה מפני אובדן
  * המכשיר, והוא ראוי ליותר מפסקה בתוך רשימת הגדרות.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** סכום הביטחון הוא הכרטיס שעולה על
+ * הבאנר, עם המספר הגדול. מסלול התקציב נבחר מכרטיסים, התצוגה ממתגים, וכל
+ * קבוצה מקבלת מדליון משלה.
  */
 
 import { Page } from '../components/layout';
@@ -37,17 +41,25 @@ import {
   ConfirmDialog,
   Field,
   LoadingState,
+  Medallion,
   Money,
-  Row,
-  Select,
   Sheet,
   TextInput,
 } from '../components/ui';
+import {
+  BigNumber,
+  ChoiceCard,
+  FeatureCard,
+  Pill,
+  SettingRow,
+  StatTile,
+  Switch,
+} from '../components/premium';
 
-const PLAN_LABELS: Record<ConcreteBudgetPlanId, string> = {
-  conservative: 'שמרני — להגיע ליעד מהר יותר',
-  balanced: 'מאוזן — מומלץ',
-  flexible: 'גמיש — יותר מקום, יעד רחוק יותר',
+const PLANS: Record<ConcreteBudgetPlanId, { title: string; note: string; recommended?: true }> = {
+  conservative: { title: 'שמרני', note: 'להגיע ליעד מהר יותר' },
+  balanced: { title: 'מאוזן', note: 'האיזון בין ליהנות עכשיו לבין היעד', recommended: true },
+  flexible: { title: 'גמיש', note: 'יותר מקום, יעד רחוק יותר' },
 };
 
 const THEME_LABELS: Record<ThemePreference, string> = {
@@ -114,47 +126,58 @@ export function Settings() {
   }
 
   return (
-    <Page title="הגדרות" icon="settings" subtitle="סכום ביטחון, יעד, נעילה ותצוגה" width="reading">
-
-      {notice ? (
-        <Card tone="brand">
-          <p role="status" className="text-sm text-accent-strong">
-            {notice}
-          </p>
-        </Card>
-      ) : null}
-      {error ? (
-        <Card tone="caution">
-          <p role="alert" className="text-sm text-slate-800">
-            {error}
-          </p>
-        </Card>
-      ) : null}
-
-      {/* ── סכום ביטחון ──────────────────────────────────────── */}
-      <Card>
-        <CardTitle hint="הסכום שלא נספר בתור כסף פנוי. שינוי כאן מעדכן מיד את 'בטוח להוציא' ואת התחזיות.">
+    <Page
+      title="הגדרות"
+      icon="settings"
+      subtitle="סכום ביטחון, יעד, נעילה ותצוגה"
+      width="reading"
+      overlap
+    >
+      {/* ── ⭐ סכום ביטחון ────────────────────────────────────── */}
+      <FeatureCard>
+        <CardTitle
+          icon="shield-check"
+          iconTone="brand"
+          hint="הסכום שלא נספר בתור כסף פנוי. שינוי כאן מעדכן מיד את 'בטוח להוציא' ואת התחזיות."
+        >
           סכום ביטחון
         </CardTitle>
-        <ChoiceGroup
-          ariaLabel="סכום ביטחון"
-          value={
-            SAFETY_BUFFER_PRESETS_AGOROT.includes(
-              settings.safetyBufferAgorot as (typeof SAFETY_BUFFER_PRESETS_AGOROT)[number],
-            )
-              ? settings.safetyBufferAgorot
-              : null
-          }
-          onChange={async (value) => {
-            await saveSettings(db, { safetyBufferAgorot: value });
-            setCustomBuffer('');
-          }}
-          options={SAFETY_BUFFER_PRESETS_AGOROT.map((value) => ({
-            value,
-            label: `₪${value / 100}`,
-            ...(value === 50_000 ? { note: 'מומלץ' } : {}),
-          }))}
-        />
+
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs text-slate-600">שמור בצד כרגע</p>
+            <div className="mt-1.5">
+              <BigNumber size="md">
+                <Money agorot={settings.safetyBufferAgorot} />
+              </BigNumber>
+            </div>
+          </div>
+          <Pill tone="brand" icon="lock">
+            לא נספר ככסף פנוי
+          </Pill>
+        </div>
+
+        <div className="mt-5">
+          <ChoiceGroup
+            ariaLabel="סכום ביטחון"
+            value={
+              SAFETY_BUFFER_PRESETS_AGOROT.includes(
+                settings.safetyBufferAgorot as (typeof SAFETY_BUFFER_PRESETS_AGOROT)[number],
+              )
+                ? settings.safetyBufferAgorot
+                : null
+            }
+            onChange={async (value) => {
+              await saveSettings(db, { safetyBufferAgorot: value });
+              setCustomBuffer('');
+            }}
+            options={SAFETY_BUFFER_PRESETS_AGOROT.map((value) => ({
+              value,
+              label: `₪${value / 100}`,
+              ...(value === 50_000 ? { note: 'מומלץ' } : {}),
+            }))}
+          />
+        </div>
         <div className="mt-3 flex gap-2">
           <TextInput
             inputMode="decimal"
@@ -179,45 +202,83 @@ export function Settings() {
             לקבוע
           </Button>
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          כרגע: <Money agorot={settings.safetyBufferAgorot} />
-        </p>
-      </Card>
+      </FeatureCard>
+
+      {/* ⚠️ ההודעות אחרי הכרטיס הראשון ולא לפניו: הכרטיס הראשון עולה על
+          הבאנר הכהה, והודעה צבעונית שקופה-למחצה לא הייתה נקראת עליו. */}
+      {notice ? (
+        <Card tone="brand">
+          <p role="status" className="text-sm text-accent-strong">
+            {notice}
+          </p>
+        </Card>
+      ) : null}
+      {error ? (
+        <Card tone="caution">
+          <p role="alert" className="text-sm text-slate-800">
+            {error}
+          </p>
+        </Card>
+      ) : null}
 
       {/* ── תקציב ────────────────────────────────────────────── */}
       <Card>
-        <CardTitle>מסלול התקציב</CardTitle>
-        <Select
-          value={settings.budgetPlanId}
-          onChange={(e) =>
-            saveSettings(db, { budgetPlanId: e.target.value as ConcreteBudgetPlanId })
-          }
-          aria-label="מסלול תקציב"
-        >
-          {(Object.keys(PLAN_LABELS) as ConcreteBudgetPlanId[]).map((id) => (
-            <option key={id} value={id}>
-              {PLAN_LABELS[id]}
-            </option>
+        <CardTitle icon="target" iconTone="brand">
+          מסלול התקציב
+        </CardTitle>
+        <div role="radiogroup" aria-label="מסלול תקציב" className="space-y-2">
+          {(Object.keys(PLANS) as ConcreteBudgetPlanId[]).map((id) => (
+            <ChoiceCard
+              key={id}
+              selected={settings.budgetPlanId === id}
+              onSelect={() => void saveSettings(db, { budgetPlanId: id })}
+              title={PLANS[id].title}
+              description={PLANS[id].note}
+              {...(PLANS[id].recommended ? { badge: <Pill tone="brand">מומלץ</Pill> } : {})}
+            />
           ))}
-        </Select>
+        </div>
         {dashboard ? (
-          <div className="mt-3">
-            <Row label="תקציב חודשי">
-              <Money agorot={dashboard.budgetPlan.monthlySpendAgorot} />
-            </Row>
-            <Row label="מתוכו לבילויים">
-              <Money agorot={dashboard.budgetPlan.funBudgetAgorot} />
-            </Row>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <StatTile
+                label="תקציב חודשי"
+                dot="brand"
+                value={<Money agorot={dashboard.budgetPlan.monthlySpendAgorot} />}
+              />
+              <StatTile
+                label="מתוכו לבילויים"
+                dot="slate"
+                value={<Money agorot={dashboard.budgetPlan.funBudgetAgorot} />}
+              />
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-slate-600">
               {dashboard.budgetPlan.risk.summaryHe} {dashboard.budgetPlan.risk.primaryReasonHe}.
             </p>
-          </div>
+          </>
         ) : null}
       </Card>
 
       {/* ── יעד ──────────────────────────────────────────────── */}
       <Card>
-        <CardTitle>היעד</CardTitle>
+        <CardTitle icon="sparkles" iconTone="brand">
+          היעד
+        </CardTitle>
+        {snapshot.goal ? (
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <StatTile
+              label="היעד כרגע"
+              dot="brand"
+              value={<Money agorot={snapshot.goal.targetAgorot} />}
+            />
+            {dashboard ? (
+              <StatTile
+                label="נשאר עד היעד"
+                value={<Money agorot={dashboard.goalProgress.gapAgorot} />}
+              />
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex gap-2">
           <AmountInput
             value={targetDraft}
@@ -241,33 +302,46 @@ export function Settings() {
             לעדכן
           </Button>
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+        <p className="mt-2 text-xs leading-relaxed text-slate-600">
           אין תאריך יעד קשיח. המערכת מציגה תאריך משוער לפי הקצב שלך, והוא זז כשההרגלים משתנים.
         </p>
       </Card>
 
       {/* ── נעילה ────────────────────────────────────────────── */}
       <Card>
-        <CardTitle>נעילת האפליקציה</CardTitle>
-        <p className="mb-3 text-sm leading-relaxed text-slate-600">
+        <CardTitle icon="lock">נעילת האפליקציה</CardTitle>
+
+        <SettingRow
+          icon={settings.lock ? 'shield-check' : 'lock'}
+          tone={settings.lock ? 'brand' : 'neutral'}
+          title="קוד נעילה"
+          description={
+            settings.lock
+              ? `נעילה אוטומטית: ${
+                  AUTO_LOCK_LABELS[settings.lock.autoLockMinutes] ??
+                  `אחרי ${settings.lock.autoLockMinutes} דקות`
+                }`
+              : 'לא הוגדר קוד'
+          }
+        >
+          <Pill tone={settings.lock ? 'brand' : 'neutral'}>{settings.lock ? 'פעילה' : 'כבויה'}</Pill>
+        </SettingRow>
+
+        <p className="mt-4 text-sm leading-relaxed text-slate-600">
           קוד בן {MIN_PIN_LENGTH}–{MAX_PIN_LENGTH} ספרות שמונע ממי שלוקח את הטלפון לרגע לראות מיד
           את הנתונים.
         </p>
-        <p className="mb-3 flex gap-2 rounded-2xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
-          <Icon name="alert-triangle" className="mt-0.5 size-4 text-caution-600" />
+        <p className="mt-3 flex gap-2 rounded-2xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
+          <Icon name="alert-triangle" className="mt-0.5 size-4 shrink-0 text-caution-600" />
           <span>
             קוד הנעילה מונע גישה מזדמנת לאפליקציה.{' '}
             <strong>הוא אינו מצפין את מסד הנתונים המקומי.</strong>
           </span>
         </p>
 
-        {settings.lock ? (
-          <>
-            <Row label="נעילה אוטומטית">
-              {AUTO_LOCK_LABELS[settings.lock.autoLockMinutes] ??
-                `אחרי ${settings.lock.autoLockMinutes} דקות`}
-            </Row>
-            <div className="mt-3 flex gap-2">
+        <div className="mt-4">
+          {settings.lock ? (
+            <div className="flex gap-2">
               <Button
                 variant="secondary"
                 onClick={() => {
@@ -281,67 +355,62 @@ export function Settings() {
                 לבטל נעילה
               </Button>
             </div>
-          </>
-        ) : (
-          <Button full onClick={() => setLockSheet(true)}>
-            להפעיל נעילה
-          </Button>
-        )}
+          ) : (
+            <Button full onClick={() => setLockSheet(true)}>
+              להפעיל נעילה
+            </Button>
+          )}
+        </div>
       </Card>
 
       {/* ── תצוגה ────────────────────────────────────────────── */}
       <Card>
-        <CardTitle>תצוגה</CardTitle>
+        <CardTitle icon={resolvedTheme === 'dark' ? 'moon' : 'sun'}>תצוגה</CardTitle>
 
-        <div className="mb-4">
-          <p className="mb-2 text-sm font-medium text-slate-700">ערכת צבעים</p>
-          <ChoiceGroup
-            ariaLabel="ערכת צבעים"
-            value={settings.theme ?? 'system'}
-            onChange={(value) => saveSettings(db, { theme: value })}
-            options={THEME_CHOICES.map((choice) => ({
-              value: choice,
-              label: THEME_LABELS[choice],
-              ...(choice === 'system' ? { note: systemNote } : {}),
-            }))}
-          />
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            ״לפי המכשיר״ הולך אחרי ההגדרה של הטלפון או המחשב ומתחלף איתה.
-          </p>
-        </div>
+        <p className="mb-2 text-sm font-medium text-slate-700">ערכת צבעים</p>
+        <ChoiceGroup
+          ariaLabel="ערכת צבעים"
+          value={settings.theme ?? 'system'}
+          onChange={(value) => saveSettings(db, { theme: value })}
+          options={THEME_CHOICES.map((choice) => ({
+            value: choice,
+            label: THEME_LABELS[choice],
+            ...(choice === 'system' ? { note: systemNote } : {}),
+          }))}
+        />
+        <p className="mt-2 text-xs leading-relaxed text-slate-600">
+          ״לפי המכשיר״ הולך אחרי ההגדרה של הטלפון או המחשב ומתחלף איתה.
+        </p>
 
-        <label className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm text-slate-700">
-          להציג אגורות
-          <input
-            type="checkbox"
+        <div className="mt-4 divide-y divide-slate-100 border-t border-slate-100">
+          <Switch
+            label="להציג אגורות"
             checked={settings.showAgorot}
-            onChange={(e) => saveSettings(db, { showAgorot: e.target.checked })}
-            className="size-6 shrink-0"
+            onChange={(checked) => void saveSettings(db, { showAgorot: checked })}
           />
-        </label>
-        <label className="flex min-h-11 items-start justify-between gap-3 py-2 text-sm text-slate-700">
-          <span>
-            מצב דיסקרטי
-            <span className="mt-0.5 block text-xs text-slate-500">
-              מטשטש את כל הסכומים על המסך. הנתונים לא משתנים — רק מה שרואים.
-            </span>
-          </span>
-          <input
-            type="checkbox"
+          <Switch
+            label="מצב דיסקרטי"
+            description="מטשטש את כל הסכומים על המסך. הנתונים לא משתנים — רק מה שרואים."
             checked={settings.discreetMode}
-            onChange={(e) => saveSettings(db, { discreetMode: e.target.checked })}
-            className="mt-0.5 size-6 shrink-0"
+            onChange={(checked) => void saveSettings(db, { discreetMode: checked })}
           />
-        </label>
-        <Link to="/categories" className="mt-2 inline-block py-2 text-sm font-semibold text-accent">
-          ניהול קטגוריות ←
-        </Link>
+          <Link to="/categories" className="group flex min-h-14 items-center gap-3.5 py-2.5">
+            <Medallion icon="tag" className="size-10" />
+            <span className="flex-1 text-sm font-semibold text-slate-900">ניהול קטגוריות</span>
+            <Icon
+              name="chevron-inline"
+              className="size-4 text-slate-400 transition group-hover:-translate-x-0.5"
+            />
+          </Link>
+        </div>
       </Card>
 
       {/* ── מחיקה ────────────────────────────────────────────── */}
       <Card>
-        <CardTitle>מחיקת כל הנתונים</CardTitle>
-        <p className="mb-3 text-sm leading-relaxed text-slate-600">
+        <CardTitle icon="trash" iconTone="danger">
+          מחיקת כל הנתונים
+        </CardTitle>
+        <p className="mb-4 text-sm leading-relaxed text-slate-600">
           מוחק את כל העסקאות, החשבונות, הקטגוריות, היעד, הכרטיסים, יומן הגיבויים וההגדרות מהמכשיר.
           הפעולה בלתי הפיכה, ואחריה האפליקציה מתחילה מההתחלה.
         </p>
@@ -355,11 +424,15 @@ export function Settings() {
         </div>
       </Card>
 
-      <div className="pb-4 text-center">
-        <Link to="/privacy" className="inline-block py-2 text-sm font-semibold text-accent">
+      <div className="flex flex-col items-center gap-3 pb-4 text-center">
+        <Link
+          to="/privacy"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200/70 bg-surface px-4 text-sm font-semibold text-accent elev-1 transition hover:border-slate-300"
+        >
+          <Icon name="lock" className="size-4" />
           מה נשמר ומה לא ←
         </Link>
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="text-xs text-slate-500">
           <span className="num">v{APP_VERSION}</span>
           <span className="mx-1.5">·</span>
           <span className="num">build {BUILD_ID}</span>
@@ -378,39 +451,46 @@ export function Settings() {
         title="קוד נעילה"
       >
         <div className="space-y-4">
-          <p className="rounded-2xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
-            הקוד עצמו לא נשמר — נשמר ממנו ערך אימות שאי אפשר להפוך בחזרה. המשמעות: אם תשכח אותו,
-            אין דרך לשחזר, והכניסה תדרוש מחיקת הנתונים ושחזור מגיבוי.
+          <p className="flex gap-2.5 rounded-2xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
+            <Icon name="info" className="mt-0.5 size-4 shrink-0 text-slate-500" />
+            <span>
+              הקוד עצמו לא נשמר — נשמר ממנו ערך אימות שאי אפשר להפוך בחזרה. המשמעות: אם תשכח אותו,
+              אין דרך לשחזר, והכניסה תדרוש מחיקת הנתונים ושחזור מגיבוי.
+            </span>
           </p>
 
-          <Field label="קוד חדש">
-            {(id) => (
-              <TextInput
-                id={id}
-                type="password"
-                inputMode="numeric"
-                dir="ltr"
-                maxLength={MAX_PIN_LENGTH}
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                autoComplete="off"
-              />
-            )}
-          </Field>
-          <Field label="שוב, לוודא" {...(lockError ? { error: lockError } : {})}>
-            {(id) => (
-              <TextInput
-                id={id}
-                type="password"
-                inputMode="numeric"
-                dir="ltr"
-                maxLength={MAX_PIN_LENGTH}
-                value={pinAgain}
-                onChange={(e) => setPinAgain(e.target.value.replace(/\D/g, ''))}
-                autoComplete="off"
-              />
-            )}
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="קוד חדש">
+              {(id) => (
+                <TextInput
+                  id={id}
+                  type="password"
+                  inputMode="numeric"
+                  dir="ltr"
+                  maxLength={MAX_PIN_LENGTH}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                  autoComplete="off"
+                  className="text-center text-xl tracking-[0.5em]"
+                />
+              )}
+            </Field>
+            <Field label="שוב, לוודא" {...(lockError ? { error: lockError } : {})}>
+              {(id) => (
+                <TextInput
+                  id={id}
+                  type="password"
+                  inputMode="numeric"
+                  dir="ltr"
+                  maxLength={MAX_PIN_LENGTH}
+                  value={pinAgain}
+                  onChange={(e) => setPinAgain(e.target.value.replace(/\D/g, ''))}
+                  autoComplete="off"
+                  className="text-center text-xl tracking-[0.5em]"
+                />
+              )}
+            </Field>
+          </div>
 
           <div>
             <p className="mb-2 text-sm font-medium text-slate-700">לנעול אוטומטית</p>

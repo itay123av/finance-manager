@@ -12,6 +12,10 @@
  *
  * ⚠️ הקוד שמוצג כאן הוא גם המפתח לנתונים. לכן הוא מוצג עם אזהרה
  * ולא כמו "קוד הזמנה" חביב — מי שמעביר אותו הלאה מעביר גישה מלאה.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** "מה זה נותן" הוא הכרטיס שעולה על
+ * הבאנר, עם שלושה אריחים. הקוד מוצג במסגרת מקווקוות, והאזהרה שלצידו
+ * נשארת בולטת.
  */
 
 import { useState } from 'react';
@@ -19,7 +23,15 @@ import { db } from '../../data/db';
 import { formatPairingCode, isValidPairingCode } from '../../core/pairingCode';
 import { connectWithCode, PairingError, startSync } from '../../data/sync/pairing';
 import { SyncError } from '../../data/sync/client';
-import { Banner, Button, Card, CardTitle, Field, TextInput } from '../components/ui';
+import { Banner, Button, Card, CardTitle, Field, Medallion, TextInput } from '../components/ui';
+import { FeatureCard } from '../components/premium';
+import { Icon, type IconName } from '../components/icons';
+
+const PERKS: { icon: IconName; title: string; note: string }[] = [
+  { icon: 'lock', title: 'מוצפן אצלך', note: 'לשרת אין את המפתח' },
+  { icon: 'refresh', title: 'קורה לבד', note: 'כל שינוי עולה מעצמו' },
+  { icon: 'laptop', title: 'טלפון ומחשב', note: 'אותם נתונים בשניהם' },
+];
 
 function messageOf(error: unknown): string {
   if (error instanceof PairingError || error instanceof SyncError) return error.message;
@@ -62,8 +74,10 @@ export function SyncStart({ onDone }: { onDone: () => Promise<void> }) {
 
   return (
     <>
-      <Card>
-        <CardTitle>מה זה נותן</CardTitle>
+      <FeatureCard>
+        <CardTitle icon="cloud" iconTone="brand">
+          מה זה נותן
+        </CardTitle>
         <p className="text-sm leading-relaxed text-slate-600">
           אותם נתונים בטלפון ובמחשב, וגיבוי שלא תלוי במכשיר אחד. מה שנשלח הוא בלוב אחד מוצפן —
           לשרת אין את המפתח, ומי שיסתכל שם יראה רצף תווים חסר משמעות.
@@ -71,13 +85,27 @@ export function SyncStart({ onDone }: { onDone: () => Promise<void> }) {
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
           אין הרשמה, אין אימייל ואין סיסמה. במכשיר הזה לא צריך להקליד כלום.
         </p>
-      </Card>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          {PERKS.map((perk) => (
+            <div
+              key={perk.title}
+              className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 sm:flex-col sm:items-start"
+            >
+              <Medallion icon={perk.icon} tone="brand" className="size-9" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">{perk.title}</p>
+                <p className="text-xs text-slate-600">{perk.note}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </FeatureCard>
 
       {problem ? <Banner tone="caution" title="לא הצלחנו" body={problem} /> : null}
 
       {!connecting ? (
         <Card>
-          <CardTitle>להפעיל כאן</CardTitle>
+          <CardTitle icon="sparkles">להפעיל כאן</CardTitle>
           <p className="text-sm leading-relaxed text-slate-600">
             המכשיר הזה יהפוך למקור. אחר כך תוכל לחבר אליו את הטלפון בעזרת קוד קצר.
           </p>
@@ -92,7 +120,7 @@ export function SyncStart({ onDone }: { onDone: () => Promise<void> }) {
         </Card>
       ) : (
         <Card>
-          <CardTitle>חיבור לקוד קיים</CardTitle>
+          <CardTitle icon="keyboard">חיבור לקוד קיים</CardTitle>
           <Field
             label="קוד חיבור"
             hint="מופיע במסך הסנכרון של המכשיר שבו הפעלת. מקפים ואותיות קטנות לא משנים."
@@ -107,7 +135,7 @@ export function SyncStart({ onDone }: { onDone: () => Promise<void> }) {
                 placeholder="XXXX-XXXX-XXXX-XXXX"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="text-center font-mono tracking-widest"
+                className="text-center font-mono text-lg tracking-widest"
               />
             )}
           </Field>
@@ -126,7 +154,7 @@ export function SyncStart({ onDone }: { onDone: () => Promise<void> }) {
           </div>
 
           {code !== '' && !isValidPairingCode(code) ? (
-            <p className="mt-2 text-xs text-slate-500">הקוד מכיל 16 תווים. עדיין חסרים כמה.</p>
+            <p className="mt-2 text-xs text-slate-600">הקוד מכיל 16 תווים. עדיין חסרים כמה.</p>
           ) : null}
         </Card>
       )}
@@ -146,23 +174,27 @@ export function PairingCodeCard({ code }: { code: string }) {
 
   return (
     <Card>
-      <CardTitle>לחבר מכשיר נוסף</CardTitle>
+      <CardTitle icon="laptop" iconTone="brand">
+        לחבר מכשיר נוסף
+      </CardTitle>
       <p className="text-sm leading-relaxed text-slate-600">
         בטלפון: פתח את אותה כתובת ← סנכרון ← "יש לי קוד", והקלד את הקוד הזה.
       </p>
 
       {shown ? (
-        <p className="num mt-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-center font-mono text-lg tracking-widest text-slate-900">
+        <p className="num mt-4 rounded-2xl border-2 border-dashed border-brand-500/50 bg-brand-50/50 p-5 text-center font-mono text-xl font-semibold tracking-widest text-slate-900">
           {formatPairingCode(code)}
         </p>
       ) : (
-        <p className="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50 p-4 text-center text-sm text-slate-500">
+        <p className="mt-4 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-600">
+          <Icon name="eye-off" className="size-4" />
           הקוד מוסתר
         </p>
       )}
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Button variant="secondary" onClick={() => setShown(!shown)}>
+          <Icon name={shown ? 'eye-off' : 'eye'} className="size-4" />
           {shown ? 'להסתיר' : 'להציג את הקוד'}
         </Button>
         <Button
@@ -176,12 +208,15 @@ export function PairingCodeCard({ code }: { code: string }) {
         </Button>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-caution-300/60 bg-caution-100/40 p-4">
-        <p className="text-sm font-semibold text-slate-800">הקוד הזה הוא המפתח לנתונים</p>
-        <p className="mt-1 text-sm leading-relaxed text-slate-600">
-          מי שמקבל אותו יכול לראות את כל ההיסטוריה הפיננסית שלך. אל תשלח אותו בצ׳אט ואל תצלם
-          אותו. ואם תאבד אותו יחד עם כל המכשירים — הנתונים בענן אבודים, כי אין דרך לאפס אותו.
-        </p>
+      <div className="mt-4 flex gap-3 rounded-2xl border border-caution-300/60 bg-caution-100/40 p-4">
+        <Icon name="alert-triangle" className="mt-0.5 size-5 shrink-0 text-caution-600" />
+        <div>
+          <p className="text-sm font-semibold text-slate-800">הקוד הזה הוא המפתח לנתונים</p>
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">
+            מי שמקבל אותו יכול לראות את כל ההיסטוריה הפיננסית שלך. אל תשלח אותו בצ׳אט ואל תצלם
+            אותו. ואם תאבד אותו יחד עם כל המכשירים — הנתונים בענן אבודים, כי אין דרך לאפס אותו.
+          </p>
+        </div>
       </div>
     </Card>
   );

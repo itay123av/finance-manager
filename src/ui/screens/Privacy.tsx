@@ -3,56 +3,115 @@
  *
  * כתוב בשפה פשוטה, וכולל גם את מה שלא נוח לומר: IndexedDB אינו מוצפן.
  * מסך פרטיות שמבטיח יותר ממה שהמערכת עושה גרוע ממסך פרטיות שאין.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** ההבטחה המרכזית עולה על הבאנר,
+ * "מה נשמר" ו"מה לא" הם שני כרטיסים זה מול זה, וכל נושא מקבל מדליון.
+ * הטקסט עצמו לא השתנה — הוא מדויק בכוונה.
  */
 
 import { Page } from '../components/layout';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../AppData';
-import { Card, CardTitle } from '../components/ui';
+import { Card, CardTitle, Medallion } from '../components/ui';
+import { FeatureCard, Pill, StatTile } from '../components/premium';
+import { Icon } from '../components/icons';
+
+function Point({ kept, children }: { kept: boolean; children: ReactNode }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <span
+        aria-hidden
+        className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full ${
+          kept ? 'bg-brand-50 text-accent' : 'bg-alertred-100 text-danger'
+        }`}
+      >
+        {kept ? (
+          <span className="size-1.5 rounded-full bg-current" />
+        ) : (
+          <Icon name="close" className="size-3" />
+        )}
+      </span>
+      <span>{children}</span>
+    </li>
+  );
+}
 
 export function Privacy() {
   const { snapshot } = useAppData();
 
   return (
-    <Page title="מה נשמר ומה לא" icon="lock" subtitle="בדיוק מה המערכת שומרת — ומה לא" width="reading">
-
-      <Card tone="brand">
-        <p className="text-sm leading-relaxed text-accent-strong">
-          הנתונים שלך נשמרים <strong>במכשיר הזה</strong>, באחסון של הדפדפן. אם הפעלת סנכרון,
-          נשלח לענן רק עותק <strong>מוצפן</strong> — לשרת אין את המפתח, והוא לא יכול לראות סכומים, שמות או קטגוריות.
-        </p>
-      </Card>
-
-      <Card>
-        <CardTitle>מה נשמר</CardTitle>
-        <ul className="list-inside list-disc space-y-1.5 text-sm leading-relaxed text-slate-700">
-          <li>יתרות הפתיחה של חשבון הבנק והמזומן</li>
-          <li>העסקאות שהזנת — תאריך, סכום, שם המקום, קטגוריה והערה</li>
-          <li>הקטגוריות שלך</li>
-          <li>היעד, סכום הביטחון והעדפות התצוגה</li>
-        </ul>
-        {snapshot ? (
-          <p className="mt-3 text-xs text-slate-500">
-            כרגע שמורות {snapshot.transactions.length} עסקאות ו-{snapshot.categories.length}{' '}
-            קטגוריות.
+    <Page
+      title="מה נשמר ומה לא"
+      icon="lock"
+      subtitle="בדיוק מה המערכת שומרת — ומה לא"
+      width="reading"
+      overlap
+    >
+      <FeatureCard>
+        <div className="flex items-start gap-4">
+          <Medallion icon="shield-check" tone="brand" className="size-14" iconClassName="size-7" />
+          <p className="text-sm leading-relaxed text-slate-700">
+            הנתונים שלך נשמרים <strong>במכשיר הזה</strong>, באחסון של הדפדפן. אם הפעלת סנכרון,
+            נשלח לענן רק עותק <strong>מוצפן</strong> — לשרת אין את המפתח, והוא לא יכול לראות סכומים,
+            שמות או קטגוריות.
           </p>
-        ) : null}
-      </Card>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Pill tone="brand" icon="lock">
+            נשמר במכשיר
+          </Pill>
+          <Pill tone="brand" icon="cloud">
+            לענן — רק מוצפן
+          </Pill>
+          <Pill icon="close">בלי פרטי בנק</Pill>
+        </div>
+      </FeatureCard>
 
-      <Card>
-        <CardTitle>מה לא נשמר — ולא ייווצר</CardTitle>
-        <ul className="list-inside list-disc space-y-1.5 text-sm leading-relaxed text-slate-700">
-          <li>שם, אימייל, טלפון או כתובת</li>
-          <li>סיסמה לבנק, שם משתמש או קוד אימות</li>
-          <li>מספר חשבון, מספר כרטיס אשראי, תעודת זהות או IBAN</li>
-        </ul>
-        <p className="mt-3 text-xs leading-relaxed text-slate-500">
-          למערכת אין שדות כאלה בכלל. יש בדיקה אוטומטית שנכשלת אם מישהו מנסה להוסיף אותם.
-        </p>
-      </Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:gap-6">
+        <Card>
+          <CardTitle icon="save" iconTone="brand">
+            מה נשמר
+          </CardTitle>
+          <ul className="space-y-2.5 text-sm leading-relaxed text-slate-700">
+            <Point kept>יתרות הפתיחה של חשבון הבנק והמזומן</Point>
+            <Point kept>העסקאות שהזנת — תאריך, סכום, שם המקום, קטגוריה והערה</Point>
+            <Point kept>הקטגוריות שלך</Point>
+            <Point kept>היעד, סכום הביטחון והעדפות התצוגה</Point>
+          </ul>
+          {snapshot ? (
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <StatTile
+                label="עסקאות שמורות"
+                value={<span className="num">{snapshot.transactions.length}</span>}
+              />
+              <StatTile
+                label="קטגוריות"
+                value={<span className="num">{snapshot.categories.length}</span>}
+              />
+            </div>
+          ) : null}
+        </Card>
+
+        <Card>
+          <CardTitle icon="eye-off" iconTone="danger">
+            מה לא נשמר — ולא ייווצר
+          </CardTitle>
+          <ul className="space-y-2.5 text-sm leading-relaxed text-slate-700">
+            <Point kept={false}>שם, אימייל, טלפון או כתובת</Point>
+            <Point kept={false}>סיסמה לבנק, שם משתמש או קוד אימות</Point>
+            <Point kept={false}>מספר חשבון, מספר כרטיס אשראי, תעודת זהות או IBAN</Point>
+          </ul>
+          <p className="mt-4 text-xs leading-relaxed text-slate-600">
+            למערכת אין שדות כאלה בכלל. יש בדיקה אוטומטית שנכשלת אם מישהו מנסה להוסיף אותם.
+          </p>
+        </Card>
+      </div>
 
       <Card tone="caution">
-        <CardTitle icon="alert-triangle">מה שחשוב שתדע</CardTitle>
+        <CardTitle icon="alert-triangle" iconTone="caution">
+          מה שחשוב שתדע
+        </CardTitle>
         <p className="text-sm leading-relaxed text-slate-700">
           האחסון של הדפדפן <strong>אינו מוצפן</strong>. מי שיש לו גישה למכשיר לא-נעול יכול, עם קצת
           ידע, לקרוא את הנתונים.
@@ -63,7 +122,7 @@ export function Privacy() {
       </Card>
 
       <Card>
-        <CardTitle>קוד הנעילה של האפליקציה</CardTitle>
+        <CardTitle icon="lock">קוד הנעילה של האפליקציה</CardTitle>
         {/* ⚠️ הניסוח הזה מכוון ומדויק. קוד נעילה שמוצג כ"הצפנה" מייצר
             ביטחון מדומה, והמשתמש מפסיק לנעול את הטלפון עצמו — כלומר
             ההגנה האמיתית נחלשת בגלל הגנה מדומה. */}
@@ -81,7 +140,7 @@ export function Privacy() {
       </Card>
 
       <Card>
-        <CardTitle>קובץ הגיבוי</CardTitle>
+        <CardTitle icon="download">קובץ הגיבוי</CardTitle>
         <p className="text-sm leading-relaxed text-slate-700">
           הגיבוי הוא הדבר היחיד שיכול לעזוב את המכשיר — ורק אם אתה בוחר לשמור אותו במקום אחר, כמו
           Drive או אימייל. שם הוא כבר לא מוגן על ידי המכשיר שלך.
@@ -92,29 +151,36 @@ export function Privacy() {
         </p>
       </Card>
 
-      <Card>
-        <CardTitle>חיבור לבנק</CardTitle>
-        <p className="text-sm leading-relaxed text-slate-700">
-          אין, והמערכת לא מבקשת פרטי התחברות לעולם. גישה אוטומטית לנתוני בנק בישראל מחייבת רישיון
-          מרשות ניירות ערך, והשירותים המורשים מוגבלים לגיל 18 ומעלה.
-        </p>
-        <p className="mt-2 text-sm leading-relaxed text-slate-700">
-          בשלב הבא תוכל לייבא בעצמך קובץ עסקאות שהורדת מאתר הבנק. הקובץ ינותח כאן במכשיר ולא יישלח
-          לשום מקום.
-        </p>
-      </Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:gap-6">
+        <Card>
+          <CardTitle icon="credit-card">חיבור לבנק</CardTitle>
+          <p className="text-sm leading-relaxed text-slate-700">
+            אין, והמערכת לא מבקשת פרטי התחברות לעולם. גישה אוטומטית לנתוני בנק בישראל מחייבת רישיון
+            מרשות ניירות ערך, והשירותים המורשים מוגבלים לגיל 18 ומעלה.
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+            בשלב הבא תוכל לייבא בעצמך קובץ עסקאות שהורדת מאתר הבנק. הקובץ ינותח כאן במכשיר ולא יישלח
+            לשום מקום.
+          </p>
+        </Card>
 
-      <Card>
-        <CardTitle>זו לא ייעוץ פיננסי</CardTitle>
-        <p className="text-sm leading-relaxed text-slate-700">
-          המערכת מחשבת ומציגה את הנתונים שלך. היא לא מציעה השקעות, אשראי או הלוואות, וכל תחזית בה
-          היא תרחיש לפי מה שהוזן — לא הבטחה.
-        </p>
-      </Card>
+        <Card>
+          <CardTitle icon="info">זו לא ייעוץ פיננסי</CardTitle>
+          <p className="text-sm leading-relaxed text-slate-700">
+            המערכת מחשבת ומציגה את הנתונים שלך. היא לא מציעה השקעות, אשראי או הלוואות, וכל תחזית בה
+            היא תרחיש לפי מה שהוזן — לא הבטחה.
+          </p>
+        </Card>
+      </div>
 
-      <Link to="/settings" className="block py-3 pb-6 text-center text-sm font-semibold text-accent">
-        ← חזרה להגדרות
-      </Link>
+      <div className="pb-6 text-center">
+        <Link
+          to="/settings"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200/70 bg-surface px-4 text-sm font-semibold text-accent elev-1 transition hover:border-slate-300"
+        >
+          ← חזרה להגדרות
+        </Link>
+      </div>
     </Page>
   );
 }

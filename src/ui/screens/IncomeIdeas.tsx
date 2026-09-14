@@ -7,9 +7,14 @@
  * ⚠️ החיבור להכנסה צפויה נעשה בזהירות: רעיון שנבחר הופך ל-`possible`,
  * לא ל-`confirmed`. זו תוכנית, לא כסף — והיא לא נכנסת ל"בטוח להוציא"
  * עד שהיא מסומנת כהתקבלה בפועל.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** כל רעיון הוא כרטיס עם מדליון
+ * וגלולת טווח, ובפתיחה הפרטים יושבים באריחים. הרשימה נשארת ה-`ul`
+ * הראשון במסך — יש בדיקה שמאתרת אותה כך.
  */
 
 import { Page } from '../components/layout';
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../data/db';
@@ -32,23 +37,29 @@ import {
   CardTitle,
   Field,
   LoadingState,
+  Medallion,
   Sheet,
   TextInput,
 } from '../components/ui';
+import { FeatureCard, Pill } from '../components/premium';
 
 /** ברירת מחדל לתאריך של תוכנית הכנסה חדשה — בעוד שבועיים. */
 const PLAN_HORIZON_DAYS = 14;
 
 function ApprovalChip({ idea }: { idea: IncomeIdea }) {
-  const strong = idea.parentApproval === 'required';
   return (
-    <span
-      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-        strong ? 'bg-caution-100 text-caution-600' : 'bg-slate-100 text-slate-600'
-      }`}
-    >
+    <Pill tone={idea.parentApproval === 'required' ? 'caution' : 'neutral'} icon="users">
       {PARENT_APPROVAL_LABEL_HE[idea.parentApproval]}
-    </span>
+    </Pill>
+  );
+}
+
+function DetailTile({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3.5">
+      <p className="text-xs font-semibold text-slate-600">{title}</p>
+      <p className="mt-1 text-sm leading-relaxed text-slate-800">{children}</p>
+    </div>
   );
 }
 
@@ -94,17 +105,38 @@ export function IncomeIdeas() {
   }
 
   return (
-    <Page title="רעיונות להכנסה" icon="sprout" subtitle="דרכים מציאותיות להרוויח בגיל שלך" width="reading">
-
-      <Card tone="brand">
-        <p className="text-sm leading-relaxed text-accent-strong">
-          רוב ההכנסה שלך מגיעה בקיץ. הרעיונות כאן נבחרו כי הם מתאימים לגיל, חוקיים, ורובם עובדים
-          גם בשאר השנה.
-        </p>
-      </Card>
+    <Page
+      title="רעיונות להכנסה"
+      icon="sprout"
+      subtitle="דרכים מציאותיות להרוויח בגיל שלך"
+      width="reading"
+      overlap
+    >
+      <FeatureCard>
+        <div className="flex items-start gap-4">
+          <Medallion icon="sprout" tone="brand" className="size-14" iconClassName="size-7" />
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-slate-900">
+              <span className="num">{INCOME_IDEAS.length}</span> רעיונות שנבחרו לגיל שלך
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-600">
+              רוב ההכנסה שלך מגיעה בקיץ. הרעיונות כאן נבחרו כי הם מתאימים לגיל, חוקיים, ורובם עובדים
+              גם בשאר השנה.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Pill tone="brand" icon="shield-check">
+            מתאים לגיל
+          </Pill>
+          <Pill icon="book">רשימה קבועה, לא AI</Pill>
+        </div>
+      </FeatureCard>
 
       <Card tone="caution">
-        <CardTitle icon="scale">לפני שמתחילים</CardTitle>
+        <CardTitle icon="scale" iconTone="caution">
+          לפני שמתחילים
+        </CardTitle>
         <p className="text-sm leading-relaxed text-slate-700">{LEGAL_NOTE_HE}</p>
         <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800">
           וכלל אחד שלא משתנה: עבודה אמיתית לא דורשת ממך לשלם כדי להתחיל.
@@ -121,74 +153,71 @@ export function IncomeIdeas() {
                   type="button"
                   onClick={() => setOpenId(expanded ? null : idea.id)}
                   aria-expanded={expanded}
-                  className="flex w-full items-start gap-3 text-start"
+                  className="flex w-full items-start gap-3.5 text-start"
                 >
-                  <Icon name={idea.icon} className="size-6 text-slate-500" />
-                  <span className="flex-1">
+                  <Medallion icon={idea.icon} tone="brand" className="size-12" iconClassName="size-6" />
+                  <span className="min-w-0 flex-1">
                     <span className="block font-semibold text-slate-900">{idea.titleHe}</span>
                     <span className="mt-1 block text-sm leading-relaxed text-slate-600">
                       {idea.whatHe}
                     </span>
-                    {idea.estimate ? (
-                      <span className="mt-1.5 block text-sm font-medium text-accent">
-                        <span className="num">
-                          {formatILS(idea.estimate.lowAgorot)}–{formatILS(idea.estimate.highAgorot)}
-                        </span>{' '}
-                        {idea.estimate.unitHe}
-                      </span>
-                    ) : (
-                      <span className="mt-1.5 block text-sm text-slate-500">
-                        סכום חד-פעמי — אין טווח שאפשר להצדיק
-                      </span>
-                    )}
+                    <span className="mt-2.5 flex flex-wrap gap-2">
+                      {idea.estimate ? (
+                        <Pill tone="brand">
+                          <span className="num">
+                            {formatILS(idea.estimate.lowAgorot)}–{formatILS(idea.estimate.highAgorot)}
+                          </span>{' '}
+                          {idea.estimate.unitHe}
+                        </Pill>
+                      ) : (
+                        <Pill>סכום חד-פעמי — אין טווח שאפשר להצדיק</Pill>
+                      )}
+                    </span>
                   </span>
-                  <Icon name={expanded ? 'chevron-up' : 'chevron-down'} className="size-4 text-slate-500" />
+                  <span
+                    aria-hidden
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-transform duration-300 ${
+                      expanded ? 'rotate-180' : ''
+                    }`}
+                  >
+                    <Icon name="chevron-down" className="size-4" />
+                  </span>
                 </button>
 
                 {expanded ? (
-                  <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                  <div className="mt-4 animate-fade-in space-y-3 border-t border-slate-100 pt-4">
                     <div className="flex flex-wrap gap-2">
                       <ApprovalChip idea={idea} />
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                        <Icon name="clock" className="size-3.5" />{idea.timeHe}
-                      </span>
+                      <Pill icon="clock">{idea.timeHe}</Pill>
                     </div>
 
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">מה צריך לדעת</p>
-                      <p className="mt-0.5 text-sm leading-relaxed text-slate-700">
-                        {idea.needToKnowHe}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">עלות התחלה</p>
-                      <p className="mt-0.5 text-sm leading-relaxed text-slate-700">
-                        {idea.startupCostHe}
-                      </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <DetailTile title="מה צריך לדעת">{idea.needToKnowHe}</DetailTile>
+                      <DetailTile title="עלות התחלה">{idea.startupCostHe}</DetailTile>
                     </div>
 
                     {idea.estimate ? (
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500">מאיפה הטווח הזה</p>
-                        <p className="mt-0.5 text-sm leading-relaxed text-slate-700">
-                          {idea.estimate.basisHe}
-                        </p>
-                      </div>
+                      <DetailTile title="מאיפה הטווח הזה">{idea.estimate.basisHe}</DetailTile>
                     ) : null}
 
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="text-xs font-semibold text-accent">יתרונות</p>
-                        <ul className="mt-1 list-inside list-disc space-y-1 text-sm leading-relaxed text-slate-700">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-brand-50/70 p-3.5">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-accent-strong">
+                          <Icon name="sparkles" className="size-3.5" />
+                          יתרונות
+                        </p>
+                        <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm leading-relaxed text-slate-700">
                           {idea.prosHe.map((item) => (
                             <li key={item}>{item}</li>
                           ))}
                         </ul>
                       </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500">חסרונות</p>
-                        <ul className="mt-1 list-inside list-disc space-y-1 text-sm leading-relaxed text-slate-700">
+                      <div className="rounded-2xl bg-slate-50 p-3.5">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                          <Icon name="info" className="size-3.5" />
+                          חסרונות
+                        </p>
+                        <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm leading-relaxed text-slate-700">
                           {idea.consHe.map((item) => (
                             <li key={item}>{item}</li>
                           ))}
@@ -197,6 +226,7 @@ export function IncomeIdeas() {
                     </div>
 
                     <Button variant="secondary" full onClick={() => startPlan(idea)}>
+                      <Icon name="plus" className="size-4" />
                       להוסיף כתוכנית הכנסה
                     </Button>
                   </div>
@@ -218,9 +248,12 @@ export function IncomeIdeas() {
         title={planFor ? `תוכנית: ${planFor.titleHe}` : 'תוכנית הכנסה'}
       >
         <div className="space-y-4">
-          <p className="rounded-2xl bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-600">
-            זה נשמר כהכנסה <strong>אפשרית</strong>. היא תופיע בתחזית כתרחיש, ולא תיכנס ל״בטוח
-            להוציא״ — עד שתסמן שהכסף נכנס בפועל.
+          <p className="flex gap-2.5 rounded-2xl bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-600">
+            <Icon name="info" className="mt-0.5 size-4 shrink-0 text-slate-500" />
+            <span>
+              זה נשמר כהכנסה <strong>אפשרית</strong>. היא תופיע בתחזית כתרחיש, ולא תיכנס ל״בטוח
+              להוציא״ — עד שתסמן שהכסף נכנס בפועל.
+            </span>
           </p>
 
           <Field label="כמה אתה מעריך שייכנס">

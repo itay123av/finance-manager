@@ -35,13 +35,20 @@ export function GoalRing({
   pct,
   label,
   size = 128,
+  tone = 'brand',
   children,
 }: {
   pct: number;
   label: string;
   size?: number;
+  /** `caution` — לחריגה, למשל תקציב שנוצל יותר מהקצב. */
+  tone?: 'brand' | 'caution';
   children?: ReactNode;
 }) {
+  const stops =
+    tone === 'caution'
+      ? ['var(--color-caution-600)', 'var(--color-caution-700)']
+      : ['var(--color-brand-500)', 'var(--color-brand-700)'];
   const clamped = clamp(pct);
   const drawn = useDrawn();
   const gradientId = useSvgId('ring');
@@ -69,8 +76,8 @@ export function GoalRing({
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="var(--color-brand-500)" />
-            <stop offset="100%" stopColor="var(--color-brand-700)" />
+            <stop offset="0%" stopColor={stops[0]} />
+            <stop offset="100%" stopColor={stops[1]} />
           </linearGradient>
         </defs>
         <circle

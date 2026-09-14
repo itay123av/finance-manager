@@ -16,6 +16,7 @@
  * - **כותרת, אייקון ותת-כותרת** — מה המסך הזה ולמה נכנסים אליו.
  * - **מדדים** (`stats`) — עד שלושה מספרים שכבר מחושבים, על זכוכית.
  *   ⚠️ רק ערכים שהמסך כבר קיבל. הבאנר לא מחשב שום דבר פיננסי.
+ * - **חפיפה** (`overlap`) — הכרטיס הראשון עולה על הבאנר, כמו בלוח הבקרה.
  * - **כניסה מדורגת** — הכרטיסים שמתחת עולים בזה אחר זה (`.stagger`).
  *
  * לוח הבקרה (`showTitle={false}`) בונה באנר משלו, עם יתרה וקו מגמה.
@@ -52,6 +53,13 @@ export interface PageProps {
   stats?: PageStat[];
   /** פעולות בבאנר. ⚠️ הרקע כהה — קישור ירוק רגיל לא יקרא עליו. */
   actions?: ReactNode;
+  /**
+   * הכרטיס הראשון עולה על הבאנר, כמו "בטוח להוציא" בלוח הבקרה.
+   *
+   * ⚠️ רק כשהילד הראשון הוא כרטיס לבן. טקסט חופשי שעולה על הבאנר היה
+   * טקסט כהה על רקע כהה.
+   */
+  overlap?: boolean;
   /** תוכן בתחילת שורת הכותרת, כשאין באנר. */
   leading?: ReactNode;
   width?: PageWidth;
@@ -77,12 +85,17 @@ function PageHero({
   icon,
   stats,
   actions,
-}: Pick<PageProps, 'title' | 'subtitle' | 'icon' | 'stats' | 'actions'>) {
+  overlap,
+}: Pick<PageProps, 'title' | 'subtitle' | 'icon' | 'stats' | 'actions' | 'overlap'>) {
   const count = stats?.length ?? 0;
   const columns = count === 1 ? 'grid-cols-1' : count === 2 ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-3';
 
   return (
-    <header className="hero-surface hero-sheen relative isolate animate-page-in overflow-hidden rounded-[1.75rem] px-5 pt-6 pb-6 text-white max-md:-mx-4 max-md:-mt-4 max-md:rounded-t-none max-md:pt-[max(1.5rem,env(safe-area-inset-top))] lg:px-8 lg:py-7">
+    <header
+      className={`hero-surface hero-sheen relative isolate animate-page-in overflow-hidden rounded-[1.75rem] px-5 pt-6 text-white max-md:-mx-4 max-md:-mt-4 max-md:rounded-t-none max-md:pt-[max(1.5rem,env(safe-area-inset-top))] lg:px-8 lg:pt-7 ${
+        overlap ? 'pb-16' : 'pb-6 lg:pb-7'
+      }`}
+    >
       <span aria-hidden className="aurora-blob aurora-a" />
       <span aria-hidden className="aurora-blob aurora-b" />
 
@@ -137,6 +150,7 @@ export function Page({
   icon,
   stats,
   actions,
+  overlap = false,
   leading,
   width = 'wide',
   children,
@@ -169,12 +183,21 @@ export function Page({
     <main className={`mx-auto w-full px-4 pt-4 pb-32 md:pb-10 lg:px-8 lg:pt-8 ${WIDTHS[width]}`}>
       <PageHero
         title={title}
+        overlap={overlap}
         {...(subtitle ? { subtitle } : {})}
         {...(icon ? { icon } : {})}
         {...(stats ? { stats } : {})}
         {...(actions ? { actions } : {})}
       />
-      <div className="stagger mt-5 space-y-4 lg:mt-6 lg:space-y-6">{children}</div>
+      {/* ⚠️ `relative z-10` בחפיפה — בלעדיו הכרטיס היה נצבע מתחת לבאנר,
+          שיש לו `isolate` ולכן הקשר ערימה משלו. */}
+      <div
+        className={`stagger space-y-4 lg:space-y-6 ${
+          overlap ? 'relative z-10 -mt-10' : 'mt-5 lg:mt-6'
+        }`}
+      >
+        {children}
+      </div>
     </main>
   );
 }

@@ -7,6 +7,10 @@
  *
  * ⚠️ הסכום שנשמר הוא **נטו**. אם יש הוצאות שקשורות לעבודה — נסיעות,
  * ציוד — הן יורדות כאן, לפני שהמספר משפיע על תחזית כלשהי.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** הכלל עצמו הוא הכרטיס שעולה על
+ * הבאנר. כל הכנסה היא שורה עם מדליון וגלולת ודאות. בבאנר רק ספירות —
+ * סכום של הכנסות צפויות הוא חישוב פיננסי, והוא לא שייך למסך.
  */
 
 import { Page } from '../components/layout';
@@ -34,21 +38,32 @@ import {
   EmptyState,
   Field,
   LoadingState,
+  Medallion,
   Money,
-  Row,
-  Select,
   Sheet,
   TextInput,
 } from '../components/ui';
+import { FeatureCard, Pill, Segmented, type PillTone } from '../components/premium';
 
-const CERTAINTY_LABEL: Record<ExpectedIncome['certainty'], string> = {
-  confirmed: 'בטוח — סוכם ומאושר',
-  likely: 'סביר — כנראה יקרה',
-  possible: 'אפשרי — עוד לא ברור',
+const CERTAINTY: Record<
+  ExpectedIncome['certainty'],
+  { short: string; label: string; tone: PillTone }
+> = {
+  confirmed: { short: 'בטוח', label: 'בטוח — סוכם ומאושר', tone: 'brand' },
+  likely: { short: 'סביר', label: 'סביר — כנראה יקרה', tone: 'neutral' },
+  possible: { short: 'אפשרי', label: 'אפשרי — עוד לא ברור', tone: 'caution' },
 };
 
 /** הקטגוריה שאליה נרשמת ההכנסה כשהיא מתקבלת. */
 const INCOME_CATEGORY_ID = 'cat-work';
+
+function CountBadge({ count }: { count: number }) {
+  return (
+    <span className="num rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+      {count}
+    </span>
+  );
+}
 
 export function ExpectedIncomes() {
   const { snapshot, loading } = useAppData();
@@ -146,79 +161,100 @@ export function ExpectedIncomes() {
     });
   }
 
-  const IncomeRow = ({ income }: { income: ExpectedIncome }) => (
-    <div className="border-b border-slate-100 py-3 last:border-0">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium text-slate-800">{income.label}</span>
-        <Money agorot={income.expectedAmountAgorot} className="font-semibold" />
-      </div>
-      <p className="mt-0.5 text-xs text-slate-500">
-        {formatDateHe(income.expectedDate)}
-        <span aria-hidden className="mx-1.5 text-slate-400">·</span>
-        {CERTAINTY_LABEL[income.certainty]}
-      </p>
-      {!income.received ? (
-        <div className="mt-2 flex gap-2">
-          <Button variant="secondary" onClick={() => receive(income)}>
-            הכסף נכנס
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={async () => {
-              await deleteExpectedIncome(db, income.id);
-              toast({ messageHe: 'ההכנסה הצפויה נמחקה.' });
-            }}
-          >
-            למחוק
-          </Button>
+  function renderIncome(income: ExpectedIncome) {
+    const level = CERTAINTY[income.certainty];
+    return (
+      <div key={income.id} className="py-3">
+        <div className="flex items-center gap-3">
+          <Medallion
+            icon={income.received ? 'shield-check' : 'calendar'}
+            tone={income.received ? 'brand' : 'neutral'}
+            className="size-10"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-slate-900">{income.label}</p>
+            <p className="mt-0.5 text-xs text-slate-600">{formatDateHe(income.expectedDate)}</p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <Money agorot={income.expectedAmountAgorot} className="text-sm font-semibold text-slate-900" />
+            {!income.received ? <Pill tone={level.tone}>{level.short}</Pill> : null}
+          </div>
         </div>
-      ) : null}
-    </div>
-  );
+        {!income.received ? (
+          <div className="mt-2.5 flex gap-2 ps-[3.25rem]">
+            <Button variant="secondary" onClick={() => void receive(income)}>
+              הכסף נכנס
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                await deleteExpectedIncome(db, income.id);
+                toast({ messageHe: 'ההכנסה הצפויה נמחקה.' });
+              }}
+            >
+              למחוק
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
-    <Page title="הכנסות צפויות" icon="wallet" subtitle="כסף שבדרך — ולמה הוא עוד לא נספר" width="reading">
-
-      <Card tone="brand">
-        <p className="text-sm leading-relaxed text-accent-strong">
-          כסף שעוד לא הגיע <strong>לא נספר</strong> ב״בטוח להוציא״. הוא משפיע רק על התחזית — עד
-          שתסמן שהוא נכנס.
-        </p>
-      </Card>
-
-      <Button full onClick={() => setOpen(true)}>
-        + הכנסה צפויה
-      </Button>
+    <Page
+      title="הכנסות צפויות"
+      icon="wallet"
+      subtitle="כסף שבדרך — ולמה הוא עוד לא נספר"
+      width="reading"
+      overlap
+      stats={[
+        { label: 'בדרך', value: <span className="num">{pending.length}</span> },
+        { label: 'התקבלו', value: <span className="num">{received.length}</span> },
+      ]}
+    >
+      {/* ── ⭐ הכלל ──────────────────────────────────────────── */}
+      <FeatureCard>
+        <div className="flex items-start gap-4">
+          <Medallion icon="wallet" tone="brand" className="size-14" iconClassName="size-7" />
+          <p className="text-sm leading-relaxed text-slate-700">
+            כסף שעוד לא הגיע <strong>לא נספר</strong> ב״בטוח להוציא״. הוא משפיע רק על התחזית — עד
+            שתסמן שהוא נכנס.
+          </p>
+        </div>
+        <Button full className="mt-4" onClick={() => setOpen(true)}>
+          + הכנסה צפויה
+        </Button>
+      </FeatureCard>
 
       {overdue.length > 0 ? (
         <Card tone="caution">
-          <CardTitle>התאריך עבר — האם הכסף נכנס?</CardTitle>
-          <p className="mb-2 text-xs leading-relaxed text-slate-600">
+          <CardTitle icon="clock" iconTone="caution">
+            התאריך עבר — האם הכסף נכנס?
+          </CardTitle>
+          <p className="mb-1 text-xs leading-relaxed text-slate-600">
             כל עוד זה לא מסומן, התחזית ממשיכה לספור את הכסף הזה כאילו הוא עוד לפנינו.
           </p>
-          {overdue.map((income) => (
-            <IncomeRow key={income.id} income={income} />
-          ))}
+          <div className="divide-y divide-caution-300/40">{overdue.map(renderIncome)}</div>
         </Card>
       ) : null}
 
       <Card>
-        <CardTitle>בדרך</CardTitle>
+        <CardTitle icon="calendar" iconTone="brand">
+          בדרך <CountBadge count={upcoming.length} />
+        </CardTitle>
         {upcoming.length === 0 ? (
-          <p className="py-2 text-sm text-slate-500">אין כרגע הכנסות צפויות.</p>
+          <p className="py-2 text-sm text-slate-600">אין כרגע הכנסות צפויות.</p>
         ) : (
-          upcoming.map((income) => <IncomeRow key={income.id} income={income} />)
+          <div className="divide-y divide-slate-100">{upcoming.map(renderIncome)}</div>
         )}
       </Card>
 
       {received.length > 0 ? (
         <Card>
-          <CardTitle>שכבר התקבלו</CardTitle>
-          {received.slice(0, 8).map((income) => (
-            <Row key={income.id} label={`${income.label} · ${formatDateHe(income.expectedDate)}`}>
-              <Money agorot={income.expectedAmountAgorot} />
-            </Row>
-          ))}
+          <CardTitle icon="shield-check">
+            שכבר התקבלו <CountBadge count={received.length} />
+          </CardTitle>
+          <div className="divide-y divide-slate-100">{received.slice(0, 8).map(renderIncome)}</div>
         </Card>
       ) : null}
 
@@ -250,48 +286,50 @@ export function ExpectedIncomes() {
             )}
           </Field>
 
-          <Field label="סכום" hint="אפשר להשאיר ריק ולמלא במקום זה שעות ותעריף.">
-            {(id) => (
-              <AmountInput id={id} value={amount} onChange={(e) => setAmount(e.target.value)} />
-            )}
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="שעות">
+          <div className="space-y-4 rounded-2xl bg-slate-50 p-3.5">
+            <Field label="סכום" hint="אפשר להשאיר ריק ולמלא במקום זה שעות ותעריף.">
               {(id) => (
-                <TextInput
-                  id={id}
-                  inputMode="decimal"
-                  dir="ltr"
-                  value={hours}
-                  onChange={(e) => setHours(e.target.value)}
-                />
+                <AmountInput id={id} value={amount} onChange={(e) => setAmount(e.target.value)} />
               )}
             </Field>
-            <Field label="לשעה">
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="שעות">
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    inputMode="decimal"
+                    dir="ltr"
+                    value={hours}
+                    onChange={(e) => setHours(e.target.value)}
+                  />
+                )}
+              </Field>
+              <Field label="לשעה">
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    inputMode="decimal"
+                    dir="ltr"
+                    value={rate}
+                    onChange={(e) => setRate(e.target.value)}
+                  />
+                )}
+              </Field>
+            </div>
+
+            <Field label="הוצאות קשורות" hint="נסיעות, ציוד. יורדות מהסכום — זה לא כסף שנשאר ביד.">
               {(id) => (
                 <TextInput
                   id={id}
                   inputMode="decimal"
                   dir="ltr"
-                  value={rate}
-                  onChange={(e) => setRate(e.target.value)}
+                  value={costs}
+                  onChange={(e) => setCosts(e.target.value)}
                 />
               )}
             </Field>
           </div>
-
-          <Field label="הוצאות קשורות" hint="נסיעות, ציוד. יורדות מהסכום — זה לא כסף שנשאר ביד.">
-            {(id) => (
-              <TextInput
-                id={id}
-                inputMode="decimal"
-                dir="ltr"
-                value={costs}
-                onChange={(e) => setCosts(e.target.value)}
-              />
-            )}
-          </Field>
 
           <Field label="מתי צפוי להיכנס">
             {(id) => (
@@ -299,26 +337,25 @@ export function ExpectedIncomes() {
             )}
           </Field>
 
-          <Field label="כמה זה בטוח">
-            {(id) => (
-              <Select
-                id={id}
-                value={certainty}
-                onChange={(e) => setCertainty(e.target.value as ExpectedIncome['certainty'])}
-              >
-                {(Object.keys(CERTAINTY_LABEL) as ExpectedIncome['certainty'][]).map((key) => (
-                  <option key={key} value={key}>
-                    {CERTAINTY_LABEL[key]}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-700">כמה זה בטוח</p>
+            <Segmented
+              ariaLabel="כמה זה בטוח"
+              value={certainty}
+              onChange={setCertainty}
+              options={(Object.keys(CERTAINTY) as ExpectedIncome['certainty'][]).map((key) => ({
+                value: key,
+                label: CERTAINTY[key].short,
+              }))}
+            />
+            <p className="mt-2 text-xs text-slate-600">{CERTAINTY[certainty].label}</p>
+          </div>
 
           {previewNet > 0 ? (
-            <Row label="ייכנס בפועל (נטו)" strong>
-              <Money agorot={previewNet} />
-            </Row>
+            <div className="flex items-center justify-between gap-3 rounded-2xl bg-brand-50/70 p-4">
+              <span className="text-sm font-semibold text-slate-700">ייכנס בפועל (נטו)</span>
+              <Money agorot={previewNet} className="text-lg font-semibold text-accent-strong" />
+            </div>
           ) : null}
 
           {error ? (

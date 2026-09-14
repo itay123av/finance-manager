@@ -15,6 +15,10 @@
  * 3. **גיבוי אוטומטי לפני דריסה.** ברירת המחדל היא לשמור את המצב
  *    הנוכחי לקובץ לפני השחזור. אם התברר שזה היה הגיבוי הלא נכון —
  *    יש לאן לחזור.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** מצב הגיבוי הוא הכרטיס שעולה על
+ * הבאנר: מתי גובה לאחרונה ומה ייכנס לקובץ. שחזור וייצוא לגיליון הם שני
+ * כרטיסים זה לצד זה, וסוג הגיבוי נבחר מכרטיסים.
  */
 
 import { Page } from '../components/layout';
@@ -40,11 +44,13 @@ import {
   CardTitle,
   Field,
   LoadingState,
+  Medallion,
   ProgressState,
   Row,
   Sheet,
   TextInput,
 } from '../components/ui';
+import { BigNumber, ChoiceCard, FeatureCard, Pill, StatTile, Switch } from '../components/premium';
 
 type ExportMode = 'encrypted' | 'plain';
 
@@ -70,6 +76,7 @@ export function Backup() {
   if (loading || !snapshot) return <LoadingState />;
 
   const hasData = snapshot.transactions.length > 0;
+  const lastBackup = snapshot.lastBackupDate;
   const passwordProblem =
     exportMode === 'plain'
       ? null
@@ -193,13 +200,75 @@ export function Backup() {
       icon="save"
       subtitle="ההגנה היחידה מאובדן המכשיר"
       width="reading"
-      stats={[
-        {
-          label: 'הגיבוי האחרון',
-          value: snapshot.lastBackupDate ? formatDateHe(snapshot.lastBackupDate) : 'עוד לא',
-        },
-      ]}
+      overlap
     >
+      {/* ── ⭐ מצב הגיבוי ─────────────────────────────────────── */}
+      <FeatureCard>
+        <CardTitle
+          icon="save"
+          iconTone="brand"
+          hint="בארכיטקטורה מקומית, אובדן המכשיר הוא הסיכון האמיתי היחיד. הגיבוי הוא ההגנה."
+        >
+          גיבוי
+        </CardTitle>
+
+        <div className="flex items-center gap-4">
+          <Medallion
+            icon={lastBackup ? 'shield-check' : 'alert-triangle'}
+            tone={lastBackup ? 'brand' : 'caution'}
+            className="size-14"
+            iconClassName="size-7"
+          />
+          <div className="min-w-0">
+            <p className="text-xs text-slate-600">
+              {lastBackup ? 'הגיבוי האחרון' : 'עוד לא יצרת גיבוי.'}
+            </p>
+            {lastBackup ? (
+              <div className="mt-1.5">
+                <BigNumber size="md">{formatDateHe(lastBackup)}</BigNumber>
+              </div>
+            ) : (
+              <p className="mt-1 text-lg font-semibold text-slate-900">כדאי לגבות עכשיו</p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          <StatTile
+            label="עסקאות"
+            dot="brand"
+            value={<span className="num">{snapshot.transactions.length}</span>}
+          />
+          <StatTile label="חשבונות" value={<span className="num">{snapshot.accounts.length}</span>} />
+          <StatTile
+            label="קטגוריות"
+            value={<span className="num">{snapshot.categories.length}</span>}
+          />
+        </div>
+
+        <Button
+          full
+          className="mt-4"
+          onClick={() => {
+            setExportMode('encrypted');
+            setExportSheet(true);
+          }}
+          disabled={busy !== null}
+        >
+          <Icon name="download" className="size-[1.125rem]" />
+          לגבות עכשיו
+        </Button>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Pill tone="brand" icon="lock">
+            מוצפן כברירת מחדל
+          </Pill>
+          <Pill icon="save">הקובץ נשאר אצלך</Pill>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-slate-600">
+          הגיבוי כולל את כל העסקאות, החשבונות, הקטגוריות, היעד וההגדרות.
+        </p>
+      </FeatureCard>
 
       {busy ? <ProgressState label={busy} pct={null} /> : null}
 
@@ -218,102 +287,62 @@ export function Backup() {
         </Card>
       ) : null}
 
-      {/* ── גיבוי ────────────────────────────────────────────── */}
-      <Card>
-        <CardTitle hint="בארכיטקטורה מקומית, אובדן המכשיר הוא הסיכון האמיתי היחיד. הגיבוי הוא ההגנה.">
-          גיבוי
-        </CardTitle>
-        <p className="mb-3 text-sm leading-relaxed text-slate-600">
-          {snapshot.lastBackupDate
-            ? `הגיבוי האחרון: ${formatDateHe(snapshot.lastBackupDate)}`
-            : 'עוד לא יצרת גיבוי.'}
-        </p>
-        <Button
-          full
-          onClick={() => {
-            setExportMode('encrypted');
-            setExportSheet(true);
-          }}
-          disabled={busy !== null}
-        >
-          לגבות עכשיו
-        </Button>
-        <p className="mt-2 text-xs leading-relaxed text-slate-500">
-          הגיבוי כולל את כל העסקאות, החשבונות, הקטגוריות, היעד וההגדרות.
-        </p>
-      </Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:gap-6">
+        {/* ── שחזור ──────────────────────────────────────────── */}
+        <Card className="flex flex-col">
+          <CardTitle icon="refresh">שחזור</CardTitle>
+          <p className="mb-4 flex-1 text-sm leading-relaxed text-slate-600">
+            שחזור <strong>מחליף</strong> את כל מה שקיים במכשיר. תראה בדיוק מה יש בקובץ לפני שתאשר.
+          </p>
+          <Button variant="secondary" full onClick={() => fileInput.current?.click()}>
+            לבחור קובץ גיבוי
+          </Button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            className="sr-only"
+            aria-label="קובץ גיבוי לשחזור"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void onFileChosen(file);
+              e.target.value = '';
+            }}
+          />
+        </Card>
 
-      {/* ── שחזור ────────────────────────────────────────────── */}
-      <Card>
-        <CardTitle>שחזור</CardTitle>
-        <p className="mb-3 text-sm leading-relaxed text-slate-600">
-          שחזור <strong>מחליף</strong> את כל מה שקיים במכשיר. תראה בדיוק מה יש בקובץ לפני שתאשר.
-        </p>
-        <Button variant="secondary" full onClick={() => fileInput.current?.click()}>
-          לבחור קובץ גיבוי
-        </Button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          className="sr-only"
-          aria-label="קובץ גיבוי לשחזור"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void onFileChosen(file);
-            e.target.value = '';
-          }}
-        />
-      </Card>
-
-      {/* ── ייצוא פשוט ───────────────────────────────────────── */}
-      <Card>
-        <CardTitle>ייצוא עסקאות לגיליון</CardTitle>
-        <p className="mb-3 text-sm leading-relaxed text-slate-600">
-          קובץ CSV עם העסקאות בלבד, לפתיחה ב-Excel או Google Sheets.{' '}
-          <strong>אי אפשר לשחזר ממנו</strong> — לשחזור צריך את הגיבוי המלא.
-        </p>
-        <Button variant="secondary" full onClick={doExportCsv} disabled={!hasData || busy !== null}>
-          לייצא CSV
-        </Button>
-      </Card>
+        {/* ── ייצוא פשוט ─────────────────────────────────────── */}
+        <Card className="flex flex-col">
+          <CardTitle icon="receipt">ייצוא עסקאות לגיליון</CardTitle>
+          <p className="mb-4 flex-1 text-sm leading-relaxed text-slate-600">
+            קובץ CSV עם העסקאות בלבד, לפתיחה ב-Excel או Google Sheets.{' '}
+            <strong>אי אפשר לשחזר ממנו</strong> — לשחזור צריך את הגיבוי המלא.
+          </p>
+          <Button variant="secondary" full onClick={doExportCsv} disabled={!hasData || busy !== null}>
+            לייצא CSV
+          </Button>
+        </Card>
+      </div>
 
       {/* ── גיליון ייצוא ─────────────────────────────────────── */}
       <Sheet open={exportSheet} onClose={closeExport} title="גיבוי הנתונים">
         <div className="space-y-4">
           <div role="radiogroup" aria-label="סוג הגיבוי" className="space-y-2">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={exportMode === 'encrypted'}
-              onClick={() => setExportMode('encrypted')}
-              className={`w-full rounded-2xl border p-3.5 text-start ${
-                exportMode === 'encrypted'
-                  ? 'border-brand-700 bg-brand-50'
-                  : 'border-slate-200 bg-surface'
-              }`}
-            >
-              <span className="block text-sm font-semibold text-slate-900">
-                גיבוי מוצפן <span className="font-normal text-accent">· מומלץ</span>
-              </span>
-              <span className="mt-1 block text-xs leading-relaxed text-slate-600">
-                הקובץ נעול בסיסמה שאתה בוחר. בלעדיה אי אפשר לפתוח אותו — גם לא כאן.
-              </span>
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={exportMode === 'plain'}
-              onClick={() => setExportMode('plain')}
-              className={`w-full rounded-2xl border p-3.5 text-start ${
-                exportMode === 'plain' ? 'border-slate-700 bg-slate-50' : 'border-slate-200 bg-surface'
-              }`}
-            >
-              <span className="block text-sm font-semibold text-slate-900">גיבוי בלי הצפנה</span>
-              <span className="mt-1 block text-xs leading-relaxed text-slate-600">
-                כל ההיסטוריה הפיננסית בטקסט קריא. מתאים רק אם הקובץ נשאר במקום שאתה סומך עליו.
-              </span>
-            </button>
+            <ChoiceCard
+              icon="lock"
+              selected={exportMode === 'encrypted'}
+              onSelect={() => setExportMode('encrypted')}
+              title="גיבוי מוצפן"
+              badge={<Pill tone="brand">מומלץ</Pill>}
+              description="הקובץ נעול בסיסמה שאתה בוחר. בלעדיה אי אפשר לפתוח אותו — גם לא כאן."
+            />
+            <ChoiceCard
+              icon="eye"
+              selected={exportMode === 'plain'}
+              onSelect={() => setExportMode('plain')}
+              title="גיבוי בלי הצפנה"
+              description="כל ההיסטוריה הפיננסית בטקסט קריא. מתאים רק אם הקובץ נשאר במקום שאתה סומך עליו."
+            />
           </div>
 
           {exportMode === 'encrypted' ? (
@@ -348,8 +377,8 @@ export function Backup() {
               </Field>
             </>
           ) : (
-            <p className="flex gap-2 rounded-xl bg-caution-100/50 p-3 text-xs leading-relaxed text-slate-700">
-              <Icon name="alert-triangle" className="mt-0.5 size-4 text-caution-600" />
+            <p className="flex gap-2 rounded-2xl bg-caution-100/50 p-3.5 text-xs leading-relaxed text-slate-700">
+              <Icon name="alert-triangle" className="mt-0.5 size-4 shrink-0 text-caution-600" />
               <span>
                 מי שיפתח את הקובץ יראה כל עסקה, כל סכום וכל יתרה. אם הוא הולך לענן או לאימייל —
                 עדיף מוצפן.
@@ -372,7 +401,10 @@ export function Backup() {
         <div className="space-y-4">
           {needsPassword ? (
             <>
-              <p className="text-sm text-slate-600">הגיבוי הזה מוצפן.</p>
+              <p className="flex items-center gap-2 text-sm text-slate-600">
+                <Icon name="lock" className="size-4 text-slate-500" />
+                הגיבוי הזה מוצפן.
+              </p>
               <Field label="סיסמת הגיבוי">
                 {(id) => (
                   <TextInput
@@ -391,20 +423,28 @@ export function Backup() {
 
           {preview ? (
             <>
-              <div className="rounded-2xl bg-slate-50 p-3.5">
+              <div className="grid grid-cols-2 gap-2">
+                <StatTile
+                  label="עסקאות"
+                  dot="brand"
+                  value={<span className="num">{preview.counts.transactions ?? 0}</span>}
+                />
+                <StatTile
+                  label="עסקאות כרטיס"
+                  value={<span className="num">{preview.counts.cardTransactions ?? 0}</span>}
+                />
+                <StatTile
+                  label="חשבונות"
+                  value={<span className="num">{preview.counts.accounts ?? 0}</span>}
+                />
+                <StatTile
+                  label="קטגוריות"
+                  value={<span className="num">{preview.counts.categories ?? 0}</span>}
+                />
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/70 px-3.5 py-1">
                 <Row label="נוצר בתאריך">{formatDateHe(preview.createdAt.slice(0, 10))}</Row>
-                <Row label="עסקאות">
-                  <span className="num">{preview.counts.transactions ?? 0}</span>
-                </Row>
-                <Row label="עסקאות כרטיס">
-                  <span className="num">{preview.counts.cardTransactions ?? 0}</span>
-                </Row>
-                <Row label="חשבונות">
-                  <span className="num">{preview.counts.accounts ?? 0}</span>
-                </Row>
-                <Row label="קטגוריות">
-                  <span className="num">{preview.counts.categories ?? 0}</span>
-                </Row>
                 <Row label="גרסת מבנה">
                   <span className="num">{preview.schemaVersion}</span>
                 </Row>
@@ -414,26 +454,23 @@ export function Backup() {
                 </Row>
               </div>
 
-              <p className="text-sm leading-relaxed text-caution-600">
-                השחזור <strong>מחליף</strong> את כל מה שקיים כרגע במכשיר. מה שלא נמצא בגיבוי —
-                יימחק.
+              <p className="flex gap-2 rounded-2xl bg-caution-100/50 p-3.5 text-sm leading-relaxed text-slate-800">
+                <Icon name="alert-triangle" className="mt-0.5 size-4 shrink-0 text-caution-600" />
+                <span>
+                  השחזור <strong>מחליף</strong> את כל מה שקיים כרגע במכשיר. מה שלא נמצא בגיבוי —
+                  יימחק.
+                </span>
               </p>
 
               {hasData ? (
-                <label className="flex items-start gap-3 rounded-2xl border border-slate-200/70 p-3.5 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
+                <div className="rounded-2xl border border-slate-200/70 px-3.5">
+                  <Switch
+                    label="לגבות קודם את המצב הנוכחי"
+                    description="יורד קובץ נוסף לפני הדריסה. אם התברר שזה הגיבוי הלא נכון — יש לאן לחזור."
                     checked={backupFirst}
-                    onChange={(e) => setBackupFirst(e.target.checked)}
-                    className="mt-0.5 size-5 shrink-0"
+                    onChange={setBackupFirst}
                   />
-                  <span>
-                    לגבות קודם את המצב הנוכחי
-                    <span className="mt-0.5 block text-xs text-slate-500">
-                      יורד קובץ נוסף לפני הדריסה. אם התברר שזה הגיבוי הלא נכון — יש לאן לחזור.
-                    </span>
-                  </span>
-                </label>
+                </div>
               ) : null}
 
               <Button full onClick={doRestore} disabled={busy !== null}>

@@ -4,6 +4,10 @@
  * שלושה שדות חובה בלבד: סכום, סוג, קטגוריה. תאריך והחשבון מגיעים
  * עם ברירת מחדל, וכל השאר מוסתר מאחורי "פרטים נוספים".
  * המטרה: עסקה רגילה מהטלפון בכמה שניות, בזמן שיוצאים מהחנות.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** הסוג בבקרה עם מחוון שגולש, הסכום
+ * בפאנל משלו, והקטגוריות הראשונות כגלולות לבחירה בלחיצה אחת. הרשימה
+ * הנפתחת נשארת — היא השדה עם התווית "קטגוריה", ויש בה את כל השאר.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -16,6 +20,11 @@ import { useAppData } from '../AppData';
 import { useToast } from '../Toast';
 import type { Transaction, TransactionType } from '../../core/types';
 import { AmountInput, Button, Field, Select, Sheet, TextInput } from '../components/ui';
+import { Segmented, Switch } from '../components/premium';
+import { Icon } from '../components/icons';
+
+/** כמה קטגוריות מוצגות כגלולות. יותר מזה כבר גולש לשלוש שורות בטלפון. */
+const QUICK_CATEGORIES = 6;
 
 export interface TransactionFormProps {
   open: boolean;
@@ -142,67 +151,84 @@ export function TransactionForm({ open, onClose, restoreFocusTo, editing }: Tran
     >
       <div className="space-y-4">
         {/* סוג — קודם, כי הוא קובע אילו קטגוריות יוצגו */}
-        <div role="radiogroup" aria-label="סוג העסקה" className="flex gap-2">
-          {(
-            [
-              { value: 'expense', label: 'הוצאה' },
-              { value: 'income', label: 'הכנסה' },
-            ] as const
-          ).map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={type === option.value}
-              onClick={() => setType(option.value)}
-              className={`min-h-11 flex-1 rounded-xl border text-sm font-semibold transition ${
-                type === option.value
-                  ? 'border-brand-700 bg-brand-50 text-accent-strong'
-                  : 'border-slate-200 bg-surface text-slate-600 elev-1 hover:border-slate-300'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
+        <Segmented
+          ariaLabel="סוג העסקה"
+          value={type}
+          onChange={setType}
+          options={[
+            { value: 'expense', label: 'הוצאה' },
+            { value: 'income', label: 'הכנסה' },
+          ]}
+        />
+
+        <div className="rounded-[1.25rem] bg-slate-50 p-4">
+          <Field label="סכום">
+            {(id) => (
+              <AmountInput
+                id={id}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                autoFocus
+              />
+            )}
+          </Field>
         </div>
 
-        <Field label="סכום">
-          {(id) => (
-            <AmountInput
-              id={id}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              autoFocus
-            />
-          )}
-        </Field>
-
-        <Field label="קטגוריה">
-          {(id) => (
-            <Select id={id} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">בחר קטגוריה…</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          )}
-        </Field>
+        <div className="space-y-2.5">
+          <Field label="קטגוריה">
+            {(id) => (
+              <Select id={id} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+                <option value="">בחר קטגוריה…</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          {categories.length > 0 ? (
+            <div role="group" aria-label="בחירה מהירה" className="flex flex-wrap gap-2">
+              {categories.slice(0, QUICK_CATEGORIES).map((c) => {
+                const chosen = categoryId === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    aria-pressed={chosen}
+                    onClick={() => setCategoryId(c.id)}
+                    className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition active:scale-95 ${
+                      chosen
+                        ? 'border-brand-700 bg-brand-50 text-accent-strong'
+                        : 'border-slate-200 bg-surface text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: c.color }} />
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
 
         <button
           type="button"
           onClick={() => setShowMore((v) => !v)}
-          className="min-h-11 text-start text-sm font-semibold text-accent"
+          className="flex min-h-11 items-center gap-1.5 text-start text-sm font-semibold text-accent"
           aria-expanded={showMore}
         >
           {showMore ? 'פחות פרטים' : 'פרטים נוספים'}
+          <Icon
+            name="chevron-down"
+            className={`size-4 transition-transform duration-300 ${showMore ? 'rotate-180' : ''}`}
+          />
         </button>
 
         {showMore ? (
           // ⚠️ שתי עמודות רק מ-`sm`. בטלפון שדה חצי-רוחב הוא שדה
           // שמקלדת מכסה וקשה לכוון אליו.
-          <div className="grid gap-4 rounded-2xl bg-slate-50 p-3.5 sm:grid-cols-2">
+          <div className="grid animate-fade-in gap-4 rounded-[1.25rem] bg-slate-50 p-4 sm:grid-cols-2">
             <Field label="תאריך">
               {(id) => (
                 <TextInput
@@ -249,15 +275,9 @@ export function TransactionForm({ open, onClose, restoreFocusTo, editing }: Tran
                 <TextInput id={id} value={note} onChange={(e) => setNote(e.target.value)} />
               )}
             </Field>
-            <label className="flex items-center gap-2 text-sm text-slate-700 sm:col-span-2">
-              <input
-                type="checkbox"
-                checked={planned}
-                onChange={(e) => setPlanned(e.target.checked)}
-                className="size-4"
-              />
-              זו הוצאה שתכננתי מראש
-            </label>
+            <div className="sm:col-span-2">
+              <Switch label="זו הוצאה שתכננתי מראש" checked={planned} onChange={setPlanned} />
+            </div>
           </div>
         ) : null}
 

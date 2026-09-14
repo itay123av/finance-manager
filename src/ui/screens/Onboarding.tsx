@@ -3,8 +3,13 @@
  *
  * חמש שאלות, ואף אחת מהן אינה פרט מזהה. אין שם, אין אימייל, אין טלפון.
  * המטרה היא שתוך פחות מדקה תהיה תמונה ראשונה על המסך.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** הכרטיס הראשון עולה על הבאנר, כל
+ * שאלה ממוספרת, ונקודת הפתיחה מוצגת כמספר הגדול — הרושם הראשון של
+ * האפליקציה צריך להיראות כמו האפליקציה.
  */
 
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fromShekels } from '../../core/money';
@@ -23,6 +28,8 @@ import {
   Money,
   TextInput,
 } from '../components/ui';
+import { BigNumber } from '../components/premium';
+import { Icon } from '../components/icons';
 
 const DEFAULT_TARGET_AGOROT = 500_000; // ₪5,000
 const DEFAULT_MILESTONES = [100_000, 250_000, 500_000];
@@ -33,6 +40,23 @@ function parseShekels(value: string): number | null {
   const parsed = Number(cleaned);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return fromShekels(parsed);
+}
+
+/** שאלה ממוספרת. ⚠️ המספר קישוט — התווית של השדה היא מה שנשמע. */
+function Step({ n, children }: { n: number; children: ReactNode }) {
+  return (
+    <Card>
+      <div className="flex gap-3.5">
+        <span
+          aria-hidden
+          className="num flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-accent-strong"
+        >
+          {n}
+        </span>
+        <div className="min-w-0 flex-1">{children}</div>
+      </div>
+    </Card>
+  );
 }
 
 export function Onboarding() {
@@ -80,9 +104,9 @@ export function Onboarding() {
   }
 
   return (
-    <main className="stagger mx-auto max-w-md space-y-5 p-5 pb-24">
+    <main className="stagger mx-auto max-w-md space-y-4 p-5 pb-24 sm:max-w-lg">
       {/* הרושם הראשון של האפליקציה — אותו באנר כמו בשאר המסכים. */}
-      <header className="hero-surface hero-sheen relative isolate -mx-5 -mt-5 overflow-hidden rounded-b-[2rem] px-6 pt-[max(2.5rem,env(safe-area-inset-top))] pb-8 text-white sm:mx-0 sm:mt-0 sm:rounded-[1.75rem]">
+      <header className="hero-surface hero-sheen relative isolate -mx-5 -mt-5 overflow-hidden rounded-b-[2rem] px-6 pt-[max(2.5rem,env(safe-area-inset-top))] pb-20 text-white sm:mx-0 sm:mt-0 sm:rounded-[1.75rem]">
         <span aria-hidden className="aurora-blob aurora-a" />
         <span aria-hidden className="aurora-blob aurora-b" />
         <div className="relative">
@@ -93,6 +117,16 @@ export function Onboarding() {
             <br />
             הנתונים נשמרים רק במכשיר הזה.
           </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white">
+              <Icon name="clock" className="size-3.5" />
+              פחות מדקה
+            </span>
+            <span className="glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white">
+              <Icon name="lock" className="size-3.5" />
+              בלי שם, אימייל או טלפון
+            </span>
+          </div>
         </div>
       </header>
 
@@ -100,11 +134,21 @@ export function Onboarding() {
         ⚠️ מכשיר חדש שכבר יש לו נתונים במקום אחר לא אמור למלא את
         הטופס הזה. מילוי ואז שחזור מייצר נתונים שנדרסים מיד, ובדרך
         גם מבלבל — לכן המוצא נמצא כאן, למעלה, ולא מוסתר בסוף.
+
+        ⚠️ `relative z-10` — הכרטיס עולה על הבאנר, שיש לו `isolate`.
       */}
-      <Card>
-        <p className="text-sm leading-relaxed text-slate-600">
-          כבר יש לך נתונים במכשיר אחר או בקובץ גיבוי?
-        </p>
+      <Card className="relative z-10 -mt-16 elev-2">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden
+            className="flex size-10 shrink-0 items-center justify-center rounded-[0.625rem] bg-brand-50 text-accent"
+          >
+            <Icon name="refresh" className="size-5" />
+          </span>
+          <p className="text-sm leading-relaxed text-slate-700">
+            כבר יש לך נתונים במכשיר אחר או בקובץ גיבוי?
+          </p>
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Link to="/sync" className={buttonClass('secondary')}>
             שחזור מהענן
@@ -115,7 +159,7 @@ export function Onboarding() {
         </div>
       </Card>
 
-      <Card>
+      <Step n={1}>
         <Field label="כמה כסף יש כרגע בחשבון הבנק?" hint="אפשר להזין בערך — אפשר לתקן אחר כך">
           {(id) => (
             <AmountInput
@@ -126,15 +170,15 @@ export function Onboarding() {
             />
           )}
         </Field>
-      </Card>
+      </Step>
 
-      <Card>
+      <Step n={2}>
         <Field label="וכמה מזומן?" hint="אם אין — אפשר להשאיר ריק">
           {(id) => <AmountInput id={id} value={cash} onChange={(e) => setCash(e.target.value)} />}
         </Field>
-      </Card>
+      </Step>
 
-      <Card>
+      <Step n={3}>
         <Field
           label="כמה כסף לא לגעת בו?"
           hint="סכום ביטחון למקרה של הפתעה. הוא לא ייספר בתור כסף פנוי, ואפשר לשנות אותו מתי שתרצה."
@@ -165,23 +209,27 @@ export function Onboarding() {
             </div>
           )}
         </Field>
-      </Card>
+      </Step>
 
-      <Card>
+      <Step n={4}>
         <Field label="מה היעד?" hint="ברירת המחדל היא ₪5,000. אפשר לשנות.">
           {(id) => (
             <AmountInput id={id} value={target} onChange={(e) => setTarget(e.target.value)} />
           )}
         </Field>
-        <p className="mt-3 text-xs leading-relaxed text-slate-500">
-          יעדי ביניים: <span className="num">₪1,000</span> ← <span className="num">₪2,500</span> ←{' '}
-          <span className="num">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+          יעדי ביניים:
+          <span className="num rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">₪1,000</span>
+          <span aria-hidden>←</span>
+          <span className="num rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">₪2,500</span>
+          <span aria-hidden>←</span>
+          <span className="num rounded-full bg-brand-50 px-2 py-0.5 font-semibold text-accent-strong">
             {targetAgorot ? `₪${(targetAgorot / 100).toLocaleString('en-US')}` : '₪5,000'}
           </span>
-        </p>
-      </Card>
+        </div>
+      </Step>
 
-      <Card>
+      <Step n={5}>
         <Field
           label="בערך כמה אתה מוציא בחודש?"
           hint="ניחוש גס מספיק. אחרי חודש-חודשיים המערכת תחשב את זה לבד מהנתונים."
@@ -190,13 +238,24 @@ export function Onboarding() {
             <AmountInput id={id} value={estimate} onChange={(e) => setEstimate(e.target.value)} />
           )}
         </Field>
-      </Card>
+      </Step>
 
       {bankAgorot !== null && cashAgorot !== null ? (
-        <Card tone="brand">
-          <p className="text-sm text-accent-strong">
-            נקודת הפתיחה שלך: <Money agorot={bankAgorot + cashAgorot} className="font-bold" />
-          </p>
+        <Card className="relative overflow-hidden elev-2">
+          <span
+            aria-hidden
+            className="absolute inset-x-0 top-0 h-1"
+            style={{
+              background:
+                'linear-gradient(to left, var(--color-brand-500), var(--color-brand-700) 60%, transparent)',
+            }}
+          />
+          <p className="text-xs text-slate-600">נקודת הפתיחה שלך</p>
+          <div className="mt-2">
+            <BigNumber tone="accent">
+              <Money agorot={bankAgorot + cashAgorot} />
+            </BigNumber>
+          </div>
         </Card>
       ) : null}
 

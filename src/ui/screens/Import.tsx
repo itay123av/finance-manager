@@ -5,6 +5,12 @@
  * הקובץ מנותח, מוצגת תצוגה מקדימה מלאה עם מה חדש, מה כפול ומה נכשל,
  * ורק לחיצה מפורשת כותבת לבסיס הנתונים. ואם משהו יצא לא נכון —
  * כפתור ביטול מוחק בדיוק את מה שנכנס.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** ההסבר עולה על הבאנר, הקובץ נבחר
+ * מאזור העלאה גדול, והספירות של התצוגה המקדימה הן אריחים וגלולות.
+ *
+ * ⚠️ החפיפה על הבאנר רק כשההסבר מוצג. בתצוגה מקדימה או בתוצאה הכרטיס
+ * הראשון יכול להיות צבעוני, וצבעוני-שקוף על באנר כהה לא נקרא.
  */
 
 import { Page } from '../components/layout';
@@ -33,17 +39,19 @@ import {
 } from '../../import/types';
 import { formatDateHe } from '../../core/dates';
 import type { ImportSession } from '../../core/types';
+import { Icon } from '../components/icons';
 import {
   Button,
   Card,
   CardTitle,
   ConfirmDialog,
   LoadingState,
+  Medallion,
   Money,
-  Row,
   Select,
   TextInput,
 } from '../components/ui';
+import { BigNumber, FeatureCard, Pill, StatTile } from '../components/premium';
 
 const ROLE_OPTIONS: ColumnRole[] = [
   'date',
@@ -55,6 +63,18 @@ const ROLE_OPTIONS: ColumnRole[] = [
   'reference',
   'ignore',
 ];
+
+/** אות ראשונה של שם בית העסק, באריח ניטרלי. ⚠️ קישוט — השם כתוב לידו. */
+function Initial({ name }: { name: string }) {
+  return (
+    <span
+      aria-hidden
+      className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-700"
+    >
+      {name.trim().charAt(0) || '·'}
+    </span>
+  );
+}
 
 export function Import() {
   const { snapshot, loading } = useAppData();
@@ -80,6 +100,7 @@ export function Import() {
 
   const activeAccountId = accountId || snapshot.settings.lastAccountId || snapshot.accounts[0]?.id || '';
   const categoryName = new Map(snapshot.categories.map((c) => [c.id, c.name]));
+  const showIntro = !preview && !result;
 
   function reset() {
     setPreview(null);
@@ -193,25 +214,42 @@ export function Import() {
       : null;
 
   return (
-    <Page title="ייבוא מהבנק" icon="download" subtitle="עו״ש או פירוט כרטיס — הקובץ נקרא רק במכשיר">
-
-      {/* ── הסבר ─────────────────────────────────────────────── */}
-      {!preview && !result ? (
-        <Card tone="brand">
-          <p className="text-sm leading-relaxed text-accent-strong">
-            הורד מאתר הבנק דוח עסקאות כקובץ CSV או Excel, והעלה אותו כאן.
-          </p>
-          <p className="mt-2 text-xs leading-relaxed text-accent">
-            הקובץ נקרא במכשיר שלך ולא נשלח לשום מקום. המערכת לא מבקשת — ולא תבקש —
-            שם משתמש, סיסמה או קוד לבנק.
-          </p>
-        </Card>
+    <Page
+      title="ייבוא מהבנק"
+      icon="download"
+      subtitle="עו״ש או פירוט כרטיס — הקובץ נקרא רק במכשיר"
+      width="reading"
+      overlap={showIntro}
+    >
+      {/* ── ⭐ הסבר ──────────────────────────────────────────── */}
+      {showIntro ? (
+        <FeatureCard>
+          <div className="flex items-start gap-4">
+            <Medallion icon="download" tone="brand" className="size-14" iconClassName="size-7" />
+            <div className="min-w-0">
+              <p className="text-base font-semibold leading-snug text-slate-900">
+                הורד מאתר הבנק דוח עסקאות כקובץ CSV או Excel, והעלה אותו כאן.
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                הקובץ נקרא במכשיר שלך ולא נשלח לשום מקום. המערכת לא מבקשת — ולא תבקש — שם משתמש,
+                סיסמה או קוד לבנק.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Pill tone="brand" icon="lock">
+              נקרא רק במכשיר
+            </Pill>
+            <Pill icon="receipt">CSV · Excel</Pill>
+            <Pill icon="credit-card">עו״ש או פירוט כרטיס</Pill>
+          </div>
+        </FeatureCard>
       ) : null}
 
       {/* ── בחירת חשבון וקובץ ────────────────────────────────── */}
       {!preview && !result && !cardPreview && !cardResult ? (
         <Card>
-          <CardTitle>לאיזה חשבון?</CardTitle>
+          <CardTitle icon="wallet">לאיזה חשבון?</CardTitle>
           <Select
             value={activeAccountId}
             onChange={(e) => setAccountId(e.target.value)}
@@ -223,9 +261,27 @@ export function Import() {
               </option>
             ))}
           </Select>
-          <Button full className="mt-4" onClick={() => fileInput.current?.click()} disabled={busy}>
-            {busy ? 'קורא את הקובץ…' : 'לבחור קובץ'}
-          </Button>
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            disabled={busy}
+            className="mt-4 flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center transition duration-200 hover:border-brand-500 hover:bg-brand-50/50 disabled:cursor-wait disabled:opacity-70"
+          >
+            <span
+              aria-hidden
+              className="flex size-12 items-center justify-center rounded-full bg-surface text-accent elev-1"
+            >
+              {busy ? (
+                <span className="size-5 animate-spin rounded-full border-2 border-slate-200 border-t-brand-500" />
+              ) : (
+                <Icon name="download" className="size-6" />
+              )}
+            </span>
+            <span className="text-sm font-semibold text-slate-900">
+              {busy ? 'קורא את הקובץ…' : 'לבחור קובץ'}
+            </span>
+            <span className="text-xs text-slate-600">CSV, XLS או XLSX</span>
+          </button>
           <input
             ref={fileInput}
             type="file"
@@ -244,8 +300,9 @@ export function Import() {
 
       {error ? (
         <Card tone="caution">
-          <p role="alert" className="text-sm leading-relaxed text-slate-800">
-            {error}
+          <p role="alert" className="flex gap-2 text-sm leading-relaxed text-slate-800">
+            <Icon name="alert-triangle" className="mt-0.5 size-4 shrink-0 text-caution-600" />
+            <span>{error}</span>
           </p>
           {preview === null && fileBytes ? (
             <Button variant="secondary" className="mt-3" onClick={() => setShowMapping(true)}>
@@ -258,57 +315,81 @@ export function Import() {
       {/* ── תוצאה ────────────────────────────────────────────── */}
       {result ? (
         <>
-          <Card tone="brand">
-            <p className="text-lg font-bold text-accent-strong">
-              נקלטו {result.imported} עסקאות
-            </p>
-            <p className="mt-1 text-sm text-accent">
+          <FeatureCard>
+            <div className="flex items-center gap-4">
+              <Medallion icon="confetti" tone="brand" className="size-14" iconClassName="size-7" />
+              <div className="min-w-0">
+                <p className="text-xs text-slate-600">הייבוא הושלם</p>
+                <div className="mt-1">
+                  <BigNumber size="md" tone="accent">
+                    נקלטו {result.imported} עסקאות
+                  </BigNumber>
+                </div>
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-slate-600">
               היתרה, "בטוח להוציא" וההתקדמות ליעד כבר מעודכנים.
             </p>
-          </Card>
-          <Button
-            full
-            variant="secondary"
-            onClick={async () => {
-              await undoImport(db, result.sessionId);
-              setResult(null);
-              setSessions(await listImportSessions(db));
-            }}
-          >
-            לבטל את הייבוא הזה
-          </Button>
-          <Button full onClick={reset}>
-            לייבא קובץ נוסף
-          </Button>
+          </FeatureCard>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              full
+              variant="secondary"
+              onClick={async () => {
+                await undoImport(db, result.sessionId);
+                setResult(null);
+                setSessions(await listImportSessions(db));
+              }}
+            >
+              לבטל את הייבוא הזה
+            </Button>
+            <Button full onClick={reset}>
+              לייבא קובץ נוסף
+            </Button>
+          </div>
         </>
       ) : null}
 
       {/* ── 💳 פירוט כרטיס אשראי — מסלול נפרד ──────────────────── */}
       {cardPreview ? (
         <>
-          <Card tone="brand">
-            <CardTitle icon="credit-card">פירוט כרטיס •••{cardPreview.cardLast4}</CardTitle>
-            <Row label="עסקאות">{cardPreview.counts.total}</Row>
-            <Row label="חדשות" strong>
-              {cardPreview.counts.fresh}
-            </Row>
-            {cardPreview.counts.duplicates > 0 ? (
-              <Row label="כבר קיימות">{cardPreview.counts.duplicates}</Row>
-            ) : null}
-            {cardPreview.counts.refunds > 0 ? (
-              <Row label="זיכויים">{cardPreview.counts.refunds}</Row>
-            ) : null}
-            {cardPreview.counts.installments > 0 ? (
-              <Row label="בתשלומים">{cardPreview.counts.installments}</Row>
-            ) : null}
-            {cardPreview.counts.foreignCurrency > 0 ? (
-              <Row label="עסקאות מט״ח">{cardPreview.counts.foreignCurrency}</Row>
-            ) : null}
-            <Row label="סך חיובים">
-              <Money agorot={cardPreview.totalBilledAgorot} />
-            </Row>
+          <Card>
+            <CardTitle icon="credit-card" iconTone="brand">
+              פירוט כרטיס •••{cardPreview.cardLast4}
+            </CardTitle>
+            <div className="grid grid-cols-3 gap-2">
+              <StatTile label="עסקאות" value={<span className="num">{cardPreview.counts.total}</span>} />
+              <StatTile
+                label="חדשות"
+                dot="brand"
+                value={<span className="num">{cardPreview.counts.fresh}</span>}
+              />
+              <StatTile label="סך חיובים" value={<Money agorot={cardPreview.totalBilledAgorot} />} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {cardPreview.counts.duplicates > 0 ? (
+                <Pill>
+                  <span className="num">{cardPreview.counts.duplicates}</span> כבר קיימות
+                </Pill>
+              ) : null}
+              {cardPreview.counts.refunds > 0 ? (
+                <Pill tone="brand">
+                  <span className="num">{cardPreview.counts.refunds}</span> זיכויים
+                </Pill>
+              ) : null}
+              {cardPreview.counts.installments > 0 ? (
+                <Pill>
+                  <span className="num">{cardPreview.counts.installments}</span> בתשלומים
+                </Pill>
+              ) : null}
+              {cardPreview.counts.foreignCurrency > 0 ? (
+                <Pill>
+                  <span className="num">{cardPreview.counts.foreignCurrency}</span> עסקאות מט״ח
+                </Pill>
+              ) : null}
+            </div>
             {cardPreview.file.dateRange ? (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-3 text-xs text-slate-600">
                 {formatDateHe(cardPreview.file.dateRange.from)} –{' '}
                 {formatDateHe(cardPreview.file.dateRange.to)}
               </p>
@@ -316,41 +397,41 @@ export function Import() {
           </Card>
 
           <Card>
-            <p className="text-sm leading-relaxed text-slate-700">
-              הפירוט הזה <strong>לא ישנה את היתרה</strong> — הכסף כבר ירד מהחשבון בחיוב המרוכז.
-              מה שישתנה: במקום שורה אחת של &quot;חיוב לכרטיס&quot;, נדע סוף סוף על מה הכסף הלך.
+            <p className="flex gap-2.5 text-sm leading-relaxed text-slate-700">
+              <Icon name="info" className="mt-0.5 size-4 shrink-0 text-slate-500" />
+              <span>
+                הפירוט הזה <strong>לא ישנה את היתרה</strong> — הכסף כבר ירד מהחשבון בחיוב המרוכז.
+                מה שישתנה: במקום שורה אחת של &quot;חיוב לכרטיס&quot;, נדע סוף סוף על מה הכסף הלך.
+              </span>
             </p>
           </Card>
 
           <Card>
-            <CardTitle>מה ייקלט</CardTitle>
-            <div className="-mx-1 max-h-96 overflow-y-auto">
+            <CardTitle icon="receipt">מה ייקלט</CardTitle>
+            <div className="-mx-1 max-h-96 divide-y divide-slate-100 overflow-y-auto">
               {cardPreview.rows.map((row, i) => (
                 <div
                   key={`${row.sourceLine}-${i}`}
-                  className={`flex items-start gap-2 border-b border-slate-100 p-2 last:border-0 ${
-                    row.isDuplicate ? 'opacity-50' : ''
-                  }`}
+                  className={`flex items-center gap-3 px-1 py-2.5 ${row.isDuplicate ? 'opacity-50' : ''}`}
                 >
+                  <Initial name={row.merchant} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-slate-900">
                       {row.merchant || '(ללא שם)'}
                     </span>
-                    <span className="block text-xs text-slate-500">
+                    <span className="block text-xs text-slate-600">
                       {formatDateHe(row.purchaseDate)}
                       <span aria-hidden className="mx-1.5 text-slate-400">·</span>
                       {categoryName.get(row.categoryId) ?? 'אחר'}
                       {row.originalCurrency ? (
-                        <span className="ms-1.5 text-slate-500">
-                          ({row.originalCurrency})
-                        </span>
+                        <span className="ms-1.5">({row.originalCurrency})</span>
                       ) : null}
                       {row.isDuplicate ? (
                         <span className="ms-1.5 text-caution-600">כבר קיימת</span>
                       ) : null}
                     </span>
                   </span>
-                  <Money agorot={row.amountAgorot} className="text-sm font-semibold" />
+                  <Money agorot={row.amountAgorot} className="text-sm font-semibold text-slate-900" />
                 </div>
               ))}
             </div>
@@ -387,13 +468,18 @@ export function Import() {
 
       {cardResult ? (
         <>
-          <Card tone="brand">
-            <p className="text-lg font-bold text-accent-strong">
-              נקלטו {cardResult.imported} עסקאות כרטיס
-            </p>
-            <p className="mt-1 text-sm text-accent">
-              {cardResult.linked} מהן קושרו לחיובים בחשבון הבנק. היתרה לא השתנתה.
-            </p>
+          <Card>
+            <div className="flex items-center gap-4">
+              <Medallion icon="credit-card" tone="brand" className="size-12" iconClassName="size-6" />
+              <div className="min-w-0">
+                <p className="text-lg font-bold text-slate-900">
+                  נקלטו {cardResult.imported} עסקאות כרטיס
+                </p>
+                <p className="mt-0.5 text-sm text-slate-600">
+                  {cardResult.linked} מהן קושרו לחיובים בחשבון הבנק. היתרה לא השתנתה.
+                </p>
+              </div>
+            </div>
           </Card>
           <Button full onClick={reset}>
             לייבא קובץ נוסף
@@ -404,7 +490,9 @@ export function Import() {
       {/* ── ⭐ הכרעת כיוון — חוסם עד שהמשתמש מחליט ──────────────── */}
       {preview?.blockedReason === 'unresolved_direction' ? (
         <Card tone="caution">
-          <CardTitle>עצרנו רגע</CardTitle>
+          <CardTitle icon="alert-triangle" iconTone="caution">
+            עצרנו רגע
+          </CardTitle>
           <p className="text-sm leading-relaxed text-slate-800">{preview.direction.messageHe}</p>
 
           <div className="mt-4 space-y-2">
@@ -412,7 +500,7 @@ export function Import() {
 
             {preview.direction.candidates.length > 0 ? (
               <div className="rounded-2xl border border-slate-200/70 bg-surface p-3.5 elev-1">
-                <p className="mb-2 text-xs text-slate-500">
+                <p className="mb-2 text-xs text-slate-600">
                   לפי עמודה בקובץ — שורה תיחשב הכנסה כשהעמודה מכילה את הערך:
                 </p>
                 <div className="flex gap-2">
@@ -478,8 +566,8 @@ export function Import() {
             </div>
           </div>
 
-          <div className="mt-4 border-t border-slate-200 pt-3">
-            <p className="mb-2 text-xs font-semibold text-slate-500">
+          <div className="mt-4 rounded-2xl bg-surface/70 p-3.5">
+            <p className="mb-2 text-xs font-semibold text-slate-600">
               5 שורות ראשונות מהקובץ, כדי שתוכל להחליט:
             </p>
             {preview.rows.slice(0, 5).map((row) => (
@@ -501,28 +589,52 @@ export function Import() {
       {preview && preview.blockedReason !== 'credit_card_file' ? (
         <>
           <Card>
-            <CardTitle>{preview.fileName}</CardTitle>
-            <Row label="נמצאו">{preview.counts.parsed} עסקאות</Row>
-            <Row label="הכנסות / הוצאות">
-              {preview.counts.income} / {preview.counts.expense}
-            </Row>
-            <Row label="חדשות" strong>
-              {preview.counts.fresh}
-            </Row>
-            {preview.counts.needsReview > 0 ? (
-              <Row label="דורשות בדיקת סיווג">{preview.counts.needsReview}</Row>
-            ) : null}
-            {preview.counts.exactDuplicates > 0 ? (
-              <Row label="כבר קיימות (ידולגו)">{preview.counts.exactDuplicates}</Row>
-            ) : null}
-            {preview.counts.possibleDuplicates > 0 ? (
-              <Row label="אולי כפולות — כדאי לבדוק">{preview.counts.possibleDuplicates}</Row>
-            ) : null}
-            {preview.counts.failed > 0 ? (
-              <Row label="שורות שלא נקלטו">{preview.counts.failed}</Row>
-            ) : null}
+            <CardTitle icon="receipt" iconTone="brand">
+              {preview.fileName}
+            </CardTitle>
+            <div className="grid grid-cols-3 gap-2">
+              <StatTile label="נמצאו" value={<span className="num">{preview.counts.parsed}</span>} />
+              <StatTile
+                label="חדשות"
+                dot="brand"
+                value={<span className="num">{preview.counts.fresh}</span>}
+              />
+              <StatTile
+                label="הכנסות / הוצאות"
+                value={
+                  <span className="num">
+                    {preview.counts.income} / {preview.counts.expense}
+                  </span>
+                }
+              />
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {preview.counts.needsReview > 0 ? (
+                <Pill tone="caution">
+                  <span className="num">{preview.counts.needsReview}</span> דורשות בדיקת סיווג
+                </Pill>
+              ) : null}
+              {preview.counts.exactDuplicates > 0 ? (
+                <Pill>
+                  <span className="num">{preview.counts.exactDuplicates}</span> כבר קיימות (ידולגו)
+                </Pill>
+              ) : null}
+              {preview.counts.possibleDuplicates > 0 ? (
+                <Pill tone="caution">
+                  <span className="num">{preview.counts.possibleDuplicates}</span> אולי כפולות — כדאי
+                  לבדוק
+                </Pill>
+              ) : null}
+              {preview.counts.failed > 0 ? (
+                <Pill tone="danger">
+                  <span className="num">{preview.counts.failed}</span> שורות שלא נקלטו
+                </Pill>
+              ) : null}
+            </div>
+
             {preview.dateRange ? (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-3 text-xs text-slate-600">
                 טווח: {formatDateHe(preview.dateRange.from)} – {formatDateHe(preview.dateRange.to)}
                 <span className="mx-1.5">·</span>
                 {preview.encoding}
@@ -534,9 +646,7 @@ export function Import() {
                 ) : null}
               </p>
             ) : null}
-            <p className="mt-1 text-xs text-slate-500">
-              כיוון: {preview.direction.sourceHe}
-            </p>
+            <p className="mt-1 text-xs text-slate-600">כיוון: {preview.direction.sourceHe}</p>
             <Button variant="ghost" className="mt-2 -ms-2" onClick={() => setShowMapping(true)}>
               העמודות זוהו לא נכון?
             </Button>
@@ -545,11 +655,11 @@ export function Import() {
           {/* מיפוי ידני */}
           {showMapping && headerRow !== undefined ? (
             <Card>
-              <CardTitle>התאמת עמודות</CardTitle>
+              <CardTitle icon="settings">התאמת עמודות</CardTitle>
               <div className="space-y-2">
                 {preview.mapping.roles.map((role, index) => (
                   <div key={index} className="flex items-center gap-2">
-                    <span className="w-28 shrink-0 truncate text-xs text-slate-500">
+                    <span className="w-28 shrink-0 truncate text-xs text-slate-600">
                       {headerRow?.[index] || `עמודה ${index + 1}`}
                     </span>
                     <Select
@@ -576,14 +686,19 @@ export function Import() {
 
           {/* השורות */}
           <Card>
-            <CardTitle>מה ייקלט</CardTitle>
+            <CardTitle icon="receipt">
+              מה ייקלט
+              <span className="num rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-accent-strong">
+                {selected.size}
+              </span>
+            </CardTitle>
             <div className="-mx-1 max-h-96 overflow-y-auto">
               {preview.rows.map((row) => {
                 const isDuplicate = row.verdict === 'exact_duplicate';
                 return (
                   <label
                     key={row.sourceLine}
-                    className={`flex items-start gap-2 border-b border-slate-100 p-2 last:border-0 ${
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-slate-50 ${
                       isDuplicate ? 'opacity-50' : ''
                     }`}
                   >
@@ -591,19 +706,19 @@ export function Import() {
                       type="checkbox"
                       checked={selected.has(row.sourceLine)}
                       onChange={() => toggle(row.sourceLine)}
-                      className="mt-1 size-4 shrink-0"
+                      className="size-5 shrink-0 accent-brand-700"
                       aria-label={`לקלוט ${row.merchant || 'עסקה'}`}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-slate-900">
                         {row.merchant || '(ללא תיאור)'}
                       </span>
-                      <span className="block text-xs text-slate-500">
+                      <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-600">
                         {formatDateHe(row.date)}
-                        <span aria-hidden className="mx-1.5 text-slate-400">·</span>
+                        <span aria-hidden className="text-slate-400">·</span>
                         {categoryName.get(row.categoryId) ?? 'אחר'}
                         {needsReview(row.categoryConfidence) ? (
-                          <span className="ms-1.5 rounded bg-caution-100 px-1 text-caution-600">
+                          <span className="rounded-full bg-caution-100 px-1.5 font-medium text-caution-700">
                             לבדיקה
                           </span>
                         ) : null}
@@ -630,12 +745,14 @@ export function Import() {
           {/* שורות שנכשלו */}
           {preview.failures.length > 0 ? (
             <Card tone="caution">
-              <CardTitle>שורות שלא נקלטו</CardTitle>
+              <CardTitle icon="alert-triangle" iconTone="caution">
+                שורות שלא נקלטו
+              </CardTitle>
               <div className="max-h-48 space-y-1 overflow-y-auto">
                 {preview.failures.slice(0, 20).map((failure, i) => (
                   <p key={i} className="text-xs leading-relaxed text-slate-700">
                     שורה {failure.sourceLine}: {FAILURE_LABELS_HE[failure.reason]}
-                    <span className="block truncate text-slate-500">{failure.rawPreview}</span>
+                    <span className="block truncate text-slate-600">{failure.rawPreview}</span>
                   </p>
                 ))}
               </div>
@@ -664,7 +781,7 @@ export function Import() {
       {/* ── ייבואים קודמים ───────────────────────────────────── */}
       {!preview ? (
         <Card>
-          <CardTitle>ייבואים קודמים</CardTitle>
+          <CardTitle icon="clock">ייבואים קודמים</CardTitle>
           {sessions === null ? (
             <Button
               variant="ghost"
@@ -674,31 +791,33 @@ export function Import() {
               להציג
             </Button>
           ) : sessions.length === 0 ? (
-            <p className="text-sm text-slate-500">עוד לא ייבאת קבצים.</p>
+            <p className="text-sm text-slate-600">עוד לא ייבאת קבצים.</p>
           ) : (
-            sessions.map((session) => (
-              <div
-                key={session.id}
-                className="flex items-center gap-2 border-b border-slate-100 py-2 last:border-0"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-900">{session.fileName}</p>
-                  <p className="text-xs text-slate-500">
-                    {formatDateHe(session.importedAt.slice(0, 10))}
-                    <span aria-hidden className="mx-1.5 text-slate-400">·</span>
-                    {session.rowsImported} עסקאות
-                    {session.undone ? (
-                      <span className="ms-1.5 text-caution-600">בוטל</span>
-                    ) : null}
-                  </p>
+            <div className="divide-y divide-slate-100">
+              {sessions.map((session) => (
+                <div key={session.id} className="flex items-center gap-3 py-2.5">
+                  <Medallion icon="receipt" className="size-9" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900">{session.fileName}</p>
+                    <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-600">
+                      {formatDateHe(session.importedAt.slice(0, 10))}
+                      <span aria-hidden className="text-slate-400">·</span>
+                      {session.rowsImported} עסקאות
+                      {session.undone ? (
+                        <span className="rounded-full bg-caution-100 px-1.5 font-medium text-caution-700">
+                          בוטל
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                  {!session.undone ? (
+                    <Button variant="ghost" onClick={() => setUndoing(session)}>
+                      לבטל
+                    </Button>
+                  ) : null}
                 </div>
-                {!session.undone ? (
-                  <Button variant="ghost" onClick={() => setUndoing(session)}>
-                    לבטל
-                  </Button>
-                ) : null}
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </Card>
       ) : null}
@@ -713,7 +832,7 @@ export function Import() {
                 יימחקו {undoing.rowsImported} העסקאות שנקלטו מהקובץ{' '}
                 <strong>{undoing.fileName}</strong>.
               </p>
-              <p className="mt-2 text-slate-500">
+              <p className="mt-2 text-slate-600">
                 עסקאות שהזנת ידנית ועסקאות מייבואים אחרים לא ייפגעו.
               </p>
             </>

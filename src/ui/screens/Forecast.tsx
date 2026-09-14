@@ -5,12 +5,17 @@
  *
  * ⚠️ תחזית ל-12 חודשים אצל מי שרוב ההכנסה שלו בקיץ היא תרחיש ולא
  * חיזוי — ולכן היא מסומנת ככזו, תמיד.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** התשובה לשאלה "כמה יהיה לי בסוף
+ * החודש" היא מספר גדול שעולה על הבאנר, ושאר הטווחים הם אריחים לידו.
+ * הגרף מקבל שטח ממולא שמצטייר, ותוויות חודשים מתחת לציר.
  */
 
 import { Page } from '../components/layout';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useAppData } from '../AppData';
 import { useSimulationContext } from '../useSimulation';
+import { AnimatedMoney, useDrawn } from '../motion';
 import {
   HORIZONS,
   buildAllScenarios,
@@ -23,15 +28,8 @@ import { assessGoalStability } from '../../core/goalStability';
 import { confidenceLabelHe } from '../../core/confidence';
 import { formatMonthHe } from '../../core/dates';
 import { Link } from 'react-router-dom';
-import {
-  buttonClass,
-  Card,
-  CardTitle,
-  EmptyState,
-  LoadingState,
-  Money,
-  Row,
-} from '../components/ui';
+import { buttonClass, Card, CardTitle, EmptyState, LoadingState, Money } from '../components/ui';
+import { BigNumber, FeatureCard, Pill, StatTile } from '../components/premium';
 
 const HORIZON_LABELS: Record<Horizon, string> = {
   1: 'סוף החודש',
@@ -40,11 +38,19 @@ const HORIZON_LABELS: Record<Horizon, string> = {
   12: 'שנה',
 };
 
+const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+
+/** שם החודש בלבד ("ספטמבר") — לתוויות הציר, שבהן השנה היא רעש. */
+const monthName = (month: string) => formatMonthHe(month).split(' ')[0] ?? month;
+
 export function Forecast() {
   const { snapshot, dashboard, loading } = useAppData();
   const { forecast } = useSimulationContext();
   const [primary, setPrimary] = useState<ScenarioId>('current');
   const [compare, setCompare] = useState<ScenarioId | null>('balanced');
+  // ⚠️ לפני כל `return` מוקדם — React דורש את אותו סדר hooks בכל רינדור.
+  const drawn = useDrawn();
+  const areaId = 'area' + useId().replace(/[^a-zA-Z0-9]/g, '');
 
   const scenarios = useMemo(
     () => (forecast ? buildAllScenarios(forecast) : []),
@@ -98,6 +104,7 @@ export function Forecast() {
     primaryScenario,
     dashboard.safeToSpend.breakdown.safetyBufferAgorot,
   );
+  const monthEndPoint = primaryScenario.byHorizon[1];
 
   // ── גבולות הגרף ──────────────────────────────────────────────────
   const series = [primaryScenario, ...(compareScenario ? [compareScenario] : [])];
@@ -113,24 +120,66 @@ export function Forecast() {
   const path = (points: { balanceAgorot: number }[]) =>
     points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.balanceAgorot)}`).join(' ');
 
-  return (
-    <Page title="תחזית" icon="trending-up" subtitle="לאן היתרה הולכת — לפי תרחישים">
+  const points = primaryScenario.points;
+  const axisLabels = [points[0], points[Math.floor((points.length - 1) / 2)], points[points.length - 1]];
 
-      {/* ── מצב היעד ─────────────────────────────────────────── */}
-      {stability ? (
-        <Card tone={stability.phase === 'reached_stable' ? 'brand' : 'plain'}>
-          <CardTitle icon="target">יעד ₪5,000</CardTitle>
-          <p className="text-lg font-bold text-slate-900">{stability.headlineHe}</p>
-          <p className="mt-1 text-sm leading-relaxed text-slate-600">{stability.detailHe}</p>
-          {stability.reached ? (
-            <p className="mt-2 text-xs leading-relaxed text-slate-600">
-              {stability.stable
-                ? 'להגיע ליעד זה חצי מהעבודה. להחזיק אותו זה השאר.'
-                : `כדי שייחשב יציב, היתרה צריכה להישאר מעל ${Math.round(stability.minimumAfterReachedAgorot / 100)} ש״ח לפחות ${stability.monthsChecked} חודשים.`}
-            </p>
-          ) : null}
-        </Card>
-      ) : null}
+  const stabilityPill = stability
+    ? stability.stable
+      ? { tone: 'brand' as const, label: 'יעד יציב' }
+      : stability.reached
+        ? { tone: 'brand' as const, label: 'היעד הושג' }
+        : { tone: 'neutral' as const, label: 'בדרך ליעד' }
+    : null;
+
+  return (
+    <Page title="תחזית" icon="trending-up" subtitle="לאן היתרה הולכת — לפי תרחישים" overlap>
+      {/* ── ⭐ כמה יהיה בסוף החודש ────────────────────────────── */}
+      <FeatureCard>
+        <CardTitle icon="trending-up" iconTone="brand">
+          {primaryScenario.labelHe}
+        </CardTitle>
+        <p className="text-xs text-slate-600">צפי ליתרה בסוף החודש</p>
+        <div className="mt-1.5">
+          <BigNumber>
+            <AnimatedMoney agorot={monthEndPoint.balanceAgorot} />
+          </BigNumber>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Pill tone="neutral">{confidenceLabelHe(monthEndPoint.confidence)}</Pill>
+          {breach ? (
+            <Pill tone="caution" icon="alert-triangle">
+              מתחת לסכום הביטחון ב־{formatMonthHe(breach)}
+            </Pill>
+          ) : (
+            <Pill tone="brand" icon="shield-check">
+              מעל סכום הביטחון
+            </Pill>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {HORIZONS.filter((h) => h !== 1).map((horizon) => {
+            const point = primaryScenario.byHorizon[horizon];
+            return (
+              <StatTile
+                key={horizon}
+                label={HORIZON_LABELS[horizon]}
+                value={<Money agorot={point.balanceAgorot} />}
+                sub={point.requiresFarHorizonWarning ? 'משתנה מאוד' : confidenceLabelHe(point.confidence)}
+              />
+            );
+          })}
+        </div>
+
+        {compareScenario ? (
+          <p className="mt-3 text-xs leading-relaxed text-slate-600">
+            <span className="font-semibold text-slate-800">{compareScenario.labelHe}:</span> סוף החודש{' '}
+            <Money agorot={compareScenario.byHorizon[1].balanceAgorot} className="font-semibold" /> ·
+            שנה <Money agorot={compareScenario.byHorizon[12].balanceAgorot} className="font-semibold" />
+          </p>
+        ) : null}
+        <p className="mt-3 text-xs leading-relaxed text-slate-500">{primaryScenario.disclaimerHe}</p>
+      </FeatureCard>
 
       {/* ── בחירת תרחישים ───────────────────────────────────── */}
       <Card>
@@ -150,24 +199,35 @@ export function Forecast() {
                   else setPrimary(scenario.scenarioId);
                 }}
                 aria-pressed={isPrimary || isCompare}
-                className={`min-h-14 rounded-2xl border p-2.5 text-start text-sm transition ${
+                className={`min-h-16 rounded-2xl border p-3 text-start text-sm transition duration-200 ${
                   isPrimary
-                    ? 'border-brand-700 bg-brand-50 font-semibold text-accent-strong'
+                    ? 'border-brand-700 bg-brand-50 font-semibold text-accent-strong ring-1 ring-brand-700'
                     : isCompare
-                      ? 'border-slate-400 bg-slate-50 font-medium text-slate-700'
-                      : 'border-slate-200 bg-surface text-slate-600'
+                      ? 'border-slate-400 bg-slate-50 font-medium text-slate-800'
+                      : 'border-slate-200 bg-surface text-slate-700 elev-1 hover:-translate-y-0.5 hover:border-slate-300'
                 }`}
               >
-                {scenario.labelHe}
-                {isPrimary ? <span className="block text-xs font-normal">ראשי</span> : null}
-                {isCompare ? <span className="block text-xs font-normal">להשוואה</span> : null}
+                <span className="flex items-center gap-2">
+                  {/* דוגמת הקו כפי שהוא בגרף — מלא לראשי, מקווקו להשוואה */}
+                  <span
+                    aria-hidden
+                    className={`h-0.5 w-4 shrink-0 rounded-full ${
+                      isPrimary
+                        ? 'bg-brand-700'
+                        : isCompare
+                          ? 'border-t-2 border-dashed border-slate-500 bg-transparent'
+                          : 'bg-slate-300'
+                    }`}
+                  />
+                  {scenario.labelHe}
+                </span>
+                {isPrimary ? <span className="mt-1 block text-xs font-normal">ראשי</span> : null}
+                {isCompare ? <span className="mt-1 block text-xs font-normal">להשוואה</span> : null}
               </button>
             );
           })}
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-slate-500">
-          {primaryScenario.explanationHe}
-        </p>
+        <p className="mt-3 text-xs leading-relaxed text-slate-600">{primaryScenario.explanationHe}</p>
       </Card>
 
       {/* ── גרף אחד בלבד ─────────────────────────────────────── */}
@@ -176,67 +236,93 @@ export function Forecast() {
           שטוחים — ההבדל בין התרחישים היה נמחק בדיוק במסך שבו יש הכי
           הרבה מקום להראות אותו. */}
       <Card>
-        <CardTitle>יתרה לאורך השנה</CardTitle>
-        <svg
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          className="h-44 w-full lg:h-72 2xl:h-80"
-          role="img"
-          aria-label={`תחזית יתרה: ${primaryScenario.labelHe}`}
-        >
-          {/* חודשי קיץ */}
-          {primaryScenario.points.map((point, index) =>
-            point.isSummer ? (
-              <rect
-                key={point.month}
-                x={x(index) - 4}
-                y={0}
-                width={8}
-                height={100}
-                className="fill-caution-100/50"
-              />
-            ) : null,
-          )}
-          {/* היעד */}
-          <line
-            x1={0}
-            x2={100}
-            y1={y(target)}
-            y2={y(target)}
-            className="stroke-brand-500"
-            strokeWidth={0.5}
-            strokeDasharray="2 2"
-            vectorEffect="non-scaling-stroke"
-          />
-          {/* סכום הביטחון */}
-          <line
-            x1={0}
-            x2={100}
-            y1={y(buffer)}
-            y2={y(buffer)}
-            className="stroke-alertred-600"
-            strokeWidth={0.5}
-            strokeDasharray="1 3"
-            vectorEffect="non-scaling-stroke"
-          />
-          {compareScenario ? (
-            <path
-              d={path(compareScenario.points)}
-              fill="none"
-              className="stroke-slate-400"
-              strokeWidth={1.5}
-              strokeDasharray="3 2"
+        <CardTitle icon="calendar">יתרה לאורך השנה</CardTitle>
+        <div dir="ltr">
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            className="h-48 w-full overflow-visible lg:h-72 2xl:h-80"
+            role="img"
+            aria-label={`תחזית יתרה: ${primaryScenario.labelHe}`}
+          >
+            <defs>
+              <linearGradient id={areaId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--color-brand-500)" stopOpacity="0.28" />
+                <stop offset="100%" stopColor="var(--color-brand-500)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {/* חודשי קיץ */}
+            {points.map((point, index) =>
+              point.isSummer ? (
+                <rect
+                  key={point.month}
+                  x={x(index) - 4}
+                  y={0}
+                  width={8}
+                  height={100}
+                  className="fill-caution-100/60"
+                />
+              ) : null,
+            )}
+            {/* היעד */}
+            <line
+              x1={0}
+              x2={100}
+              y1={y(target)}
+              y2={y(target)}
+              className="stroke-brand-500"
+              strokeWidth={1}
+              strokeDasharray="4 4"
               vectorEffect="non-scaling-stroke"
             />
-          ) : null}
-          <path
-            d={path(primaryScenario.points)}
-            fill="none"
-            className="stroke-brand-700"
-            strokeWidth={2}
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
+            {/* סכום הביטחון */}
+            <line
+              x1={0}
+              x2={100}
+              y1={y(buffer)}
+              y2={y(buffer)}
+              className="stroke-alertred-600"
+              strokeWidth={1}
+              strokeDasharray="2 5"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d={`${path(points)} L 100 100 L 0 100 Z`}
+              fill={`url(#${areaId})`}
+              style={{ opacity: drawn ? 1 : 0, transition: 'opacity 1.2s ease 0.4s' }}
+            />
+            {compareScenario ? (
+              <path
+                d={path(compareScenario.points)}
+                fill="none"
+                className="stroke-slate-400"
+                strokeWidth={1.75}
+                strokeDasharray="5 4"
+                vectorEffect="non-scaling-stroke"
+              />
+            ) : null}
+            <path
+              d={path(points)}
+              fill="none"
+              className="stroke-brand-700"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              pathLength={1}
+              strokeDasharray={1}
+              strokeDashoffset={drawn ? 0 : 1}
+              style={{ transition: `stroke-dashoffset 1.6s ${EASE}` }}
+            />
+          </svg>
+          {/* ⚠️ ציר הזמן משמאל לימין גם בממשק בעברית — כמו קו המגמה בלוח
+              הבקרה והגרף במסך התובנות. */}
+          <div className="mt-2 flex justify-between text-xs text-slate-500" aria-hidden="true">
+            {axisLabels.map((point, i) => (
+              <span key={`${point?.month}-${i}`}>{point ? monthName(point.month) : ''}</span>
+            ))}
+          </div>
+        </div>
 
         {/* חלופה טקסטואלית לגרף — קורא מסך לא רואה קווי SVG */}
         <table className="sr-only">
@@ -248,7 +334,7 @@ export function Forecast() {
             </tr>
           </thead>
           <tbody>
-            {primaryScenario.points.map((point) => (
+            {points.map((point) => (
               <tr key={point.month}>
                 <td>{formatMonthHe(point.month)}</td>
                 <td>{Math.round(point.balanceAgorot / 100)} ש״ח</td>
@@ -257,90 +343,66 @@ export function Forecast() {
           </tbody>
         </table>
 
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-          <span>
-            <span className="inline-block h-0.5 w-4 bg-brand-700 align-middle" />{' '}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Pill>
+            <span aria-hidden className="inline-block h-0.5 w-3.5 rounded-full bg-brand-700" />
             {primaryScenario.labelHe}
-          </span>
+          </Pill>
           {compareScenario ? (
-            <span>
-              <span className="inline-block h-0.5 w-4 bg-slate-400 align-middle" />{' '}
+            <Pill>
+              <span aria-hidden className="inline-block w-3.5 border-t-2 border-dashed border-slate-500" />
               {compareScenario.labelHe}
-            </span>
+            </Pill>
           ) : null}
-          {/* מקרא: ריבוע צבע ולא תו טקסט. `▪` נשען על גופן, מקבל
-              את צבע הטקסט ולא את צבע הסדרה, וגודלו משתנה בין מכשירים. */}
-          <span className="inline-flex items-center gap-1.5">
+          <Pill>
             <span aria-hidden className="inline-block size-2.5 rounded-sm bg-brand-500" />
             יעד ₪{Math.round(target / 100).toLocaleString('en-US')}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
+          </Pill>
+          <Pill>
             <span aria-hidden className="inline-block size-2.5 rounded-sm bg-caution-300" />
             חודשי קיץ
-          </span>
+          </Pill>
         </div>
       </Card>
 
-      {/* ── טווחים ──────────────────────────────────────────── */}
-      {/* ארבעת הטווחים זה לצד זה במסך רחב — כך רואים את כל התחזית
-          במבט אחד במקום לגלול בין ארבע שורות. */}
-      <Card>
-        <CardTitle>{primaryScenario.labelHe}</CardTitle>
-        <div className="lg:grid lg:grid-cols-4 lg:gap-4">
-        {HORIZONS.map((horizon) => {
-          const point = primaryScenario.byHorizon[horizon];
-          return (
-            <div
-              key={horizon}
-              className="border-b border-slate-100 py-2 last:border-0 lg:rounded-xl lg:border lg:border-slate-200 lg:p-3"
-            >
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm text-slate-700">{HORIZON_LABELS[horizon]}</span>
-                <Money agorot={point.balanceAgorot} className="font-semibold" />
-              </div>
-              <p className="text-xs text-slate-500">
-                {confidenceLabelHe(point.confidence)}
-                {point.requiresFarHorizonWarning ? ' · תחזית רחוקה, משתנה מאוד' : ''}
-              </p>
-              {compareScenario ? (
-                <p className="text-xs text-slate-500">
-                  {compareScenario.labelHe}:{' '}
-                  <Money agorot={compareScenario.byHorizon[horizon].balanceAgorot} />
-                </p>
-              ) : null}
-            </div>
-          );
-        })}
-        </div>
-        <p className="mt-3 text-xs leading-relaxed text-slate-500">
-          {primaryScenario.disclaimerHe}
-        </p>
-      </Card>
-
-      {breach ? (
-        <Card tone="caution">
-          <p className="text-sm leading-relaxed text-slate-800">
-            בתרחיש הזה, היתרה צפויה לרדת מתחת לסכום הביטחון ב־{formatMonthHe(breach)}.
-          </p>
+      {/* ── מצב היעד ─────────────────────────────────────────── */}
+      {stability && stabilityPill ? (
+        <Card>
+          <div className="flex items-start justify-between gap-3">
+            <CardTitle icon="target" iconTone="brand">
+              יעד ₪5,000
+            </CardTitle>
+            <Pill tone={stabilityPill.tone}>{stabilityPill.label}</Pill>
+          </div>
+          <p className="text-lg font-semibold leading-snug text-slate-900">{stability.headlineHe}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{stability.detailHe}</p>
+          {stability.reached ? (
+            <p className="mt-3 rounded-2xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
+              {stability.stable
+                ? 'להגיע ליעד זה חצי מהעבודה. להחזיק אותו זה השאר.'
+                : `כדי שייחשב יציב, היתרה צריכה להישאר מעל ${Math.round(stability.minimumAfterReachedAgorot / 100)} ש״ח לפחות ${stability.monthsChecked} חודשים.`}
+            </p>
+          ) : null}
         </Card>
       ) : null}
 
       {outlook.noteHe ? (
         <Card>
-          <CardTitle>הכנסות שעדיין לא בטוחות</CardTitle>
-          {outlook.likelyAgorot > 0 ? (
-            <Row label="סביר שיגיע">
-              <Money agorot={outlook.likelyAgorot} />
-            </Row>
-          ) : null}
-          {outlook.possibleAgorot > 0 ? (
-            <Row label="אולי יגיע">
-              <Money agorot={outlook.possibleAgorot} />
-            </Row>
-          ) : null}
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">{outlook.noteHe}</p>
+          <CardTitle icon="wallet">הכנסות שעדיין לא בטוחות</CardTitle>
+          <div className="grid grid-cols-2 gap-2">
+            {outlook.likelyAgorot > 0 ? (
+              <StatTile label="סביר שיגיע" dot="brand" value={<Money agorot={outlook.likelyAgorot} />} />
+            ) : null}
+            {outlook.possibleAgorot > 0 ? (
+              <StatTile label="אולי יגיע" dot="slate" value={<Money agorot={outlook.possibleAgorot} />} />
+            ) : null}
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-slate-500">{outlook.noteHe}</p>
         </Card>
       ) : null}
+
+      {/* ⚠️ אין כאן כרטיס נפרד על ירידה מתחת לסכום הביטחון: הגלולה בכרטיס
+          הראשי כבר אומרת את זה, בראש המסך. פעמיים זה רעש. */}
     </Page>
   );
 }

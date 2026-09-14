@@ -3,6 +3,10 @@
  *
  * `nature` הוא לא קישוט: הוא קובע אילו קטגוריות המערכת רשאית להציע
  * לצמצום. לכן הוא ניתן לעריכה ומוסבר בשפה פשוטה.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** הרשימה יושבת בכרטיס שעולה על
+ * הבאנר, כל קטגוריה מקבלת אריח בצבע שלה, והאופי נבחר מכרטיסים עם
+ * ההסבר גלוי — לא מתוך רשימה נפתחת שמסתירה אותו.
  */
 
 import { Page } from '../components/layout';
@@ -16,7 +20,18 @@ import {
   updateCategory,
 } from '../../data/repositories';
 import type { Category, CategoryNature } from '../../core/types';
-import { Button, Card, CardTitle, ConfirmDialog, Field, LoadingState, Select, Sheet, TextInput } from '../components/ui';
+import {
+  Button,
+  Card,
+  CardTitle,
+  ConfirmDialog,
+  Field,
+  LoadingState,
+  Medallion,
+  Sheet,
+  TextInput,
+} from '../components/ui';
+import { ChoiceCard, FeatureCard, IconButton, Pill, Segmented } from '../components/premium';
 import { Icon } from '../components/icons';
 
 const NATURE_LABELS: Record<CategoryNature, { label: string; help: string }> = {
@@ -26,6 +41,21 @@ const NATURE_LABELS: Record<CategoryNature, { label: string; help: string }> = {
   reducible: { label: 'ניתנת לצמצום', help: 'המערכת תציע להקטין אותה קודם.' },
   system: { label: 'מערכת', help: 'קטגוריה פנימית של המערכת.' },
 };
+
+const EDITABLE_NATURES = ['essential', 'important', 'fun', 'reducible'] as const;
+
+/** אריח בצבע הקטגוריה. ⚠️ קישוט — השם תמיד כתוב לידו. */
+function Swatch({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden
+      className="flex size-10 shrink-0 items-center justify-center rounded-[0.875rem]"
+      style={{ background: `color-mix(in oklab, ${color} 18%, transparent)` }}
+    >
+      <span className="size-3.5 rounded-full" style={{ backgroundColor: color }} />
+    </span>
+  );
+}
 
 export function Categories() {
   const { snapshot, loading } = useAppData();
@@ -71,81 +101,98 @@ export function Categories() {
     setCreating(false);
   }
 
-  function renderList(list: Category[], archivedList: boolean) {
+  function renderRow(c: Category, archivedList: boolean) {
     return (
-      <div className="overflow-hidden rounded-[1.25rem] border border-slate-200/70 bg-surface elev-1">
-        {list.map((c, i) => (
-          <div
-            key={c.id}
-            className={`flex items-center gap-3 p-3 ${i > 0 ? 'border-t border-slate-100' : ''}`}
-          >
-            <span
-              className="size-3 shrink-0 rounded-full"
-              style={{ backgroundColor: c.color }}
-              aria-hidden
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-slate-900">{c.name}</p>
-              <p className="text-xs text-slate-500">
-                {NATURE_LABELS[c.nature].label}
-                <span aria-hidden className="mx-1.5 text-slate-400">·</span>
-                {usage.get(c.id) ?? 0} עסקאות
-              </p>
-            </div>
-            {archivedList ? (
-              <Button variant="ghost" onClick={() => unarchiveCategory(db, c.id)}>
-                להחזיר
-              </Button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => openEdit(c)}
-                  aria-label={`עריכת ${c.name}`}
-                  className="flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
-                >
-                  <Icon name="pencil" className="size-4" />
-                </button>
-                {!c.isSystem ? (
-                  <button
-                    type="button"
-                    onClick={() => setRemoving(c)}
-                    aria-label={`הסרת ${c.name}`}
-                    className="flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-alertred-100"
-                  >
-                    <Icon name="trash" className="size-4" />
-                  </button>
-                ) : null}
-              </>
-            )}
-          </div>
-        ))}
+      <div key={c.id} className="flex items-center gap-3 py-2.5">
+        <Swatch color={c.color} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-900">{c.name}</p>
+          <p className="text-xs text-slate-600">
+            {NATURE_LABELS[c.nature].label}
+            <span aria-hidden className="mx-1.5 text-slate-400">
+              ·
+            </span>
+            <span className="num">{usage.get(c.id) ?? 0}</span> עסקאות
+          </p>
+        </div>
+        {archivedList ? (
+          <Button variant="ghost" onClick={() => void unarchiveCategory(db, c.id)}>
+            להחזיר
+          </Button>
+        ) : (
+          <>
+            <IconButton icon="pencil" label={`עריכת ${c.name}`} onClick={() => openEdit(c)} />
+            {!c.isSystem ? (
+              <IconButton
+                icon="trash"
+                tone="danger"
+                label={`הסרת ${c.name}`}
+                onClick={() => setRemoving(c)}
+              />
+            ) : null}
+          </>
+        )}
       </div>
     );
   }
 
   return (
-    <Page title="קטגוריות" icon="tag" subtitle="לערוך, להוסיף, לארכב" width="reading">
+    <Page
+      title="קטגוריות"
+      icon="tag"
+      subtitle="לערוך, להוסיף, לארכב"
+      width="reading"
+      overlap
+      stats={[
+        { label: 'פעילות', value: <span className="num">{active.length}</span> },
+        { label: 'בארכיון', value: <span className="num">{archived.length}</span> },
+      ]}
+    >
+      {/* ── ⭐ הקטגוריות ─────────────────────────────────────── */}
+      <FeatureCard>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2.5 text-sm font-semibold text-slate-600">
+            <Medallion icon="tag" tone="brand" />
+            הקטגוריות שלך
+          </h2>
+          <Button onClick={openCreate}>
+            <Icon name="plus" className="size-4" />
+            קטגוריה חדשה
+          </Button>
+        </div>
+
+        <div className="mb-2 flex flex-wrap gap-2">
+          {EDITABLE_NATURES.map((n) => {
+            const count = active.filter((c) => c.nature === n).length;
+            return count > 0 ? (
+              <Pill key={n}>
+                {NATURE_LABELS[n].label} · <span className="num">{count}</span>
+              </Pill>
+            ) : null;
+          })}
+        </div>
+
+        <div className="divide-y divide-slate-100">{active.map((c) => renderRow(c, false))}</div>
+      </FeatureCard>
 
       {notice ? (
         <Card tone="brand">
-          <p className="text-sm text-accent-strong">{notice}</p>
+          <p role="status" className="text-sm text-accent-strong">
+            {notice}
+          </p>
         </Card>
       ) : null}
 
-      <Button full variant="secondary" onClick={openCreate}>
-        + קטגוריה חדשה
-      </Button>
-
-      {renderList(active, false)}
-
       {archived.length > 0 ? (
-        <>
-          <CardTitle hint="קטגוריה שיש לה עסקאות לא נמחקת, כדי שההיסטוריה לא תישבר. היא עוברת לכאן.">
+        <Card>
+          <CardTitle
+            icon="package"
+            hint="קטגוריה שיש לה עסקאות לא נמחקת, כדי שההיסטוריה לא תישבר. היא עוברת לכאן."
+          >
             בארכיון
           </CardTitle>
-          {renderList(archived, true)}
-        </>
+          <div className="divide-y divide-slate-100">{archived.map((c) => renderRow(c, true))}</div>
+        </Card>
       ) : null}
 
       <Sheet
@@ -162,35 +209,34 @@ export function Categories() {
           </Field>
 
           {!editing ? (
-            <Field label="סוג">
-              {(id) => (
-                <Select
-                  id={id}
-                  value={kind}
-                  onChange={(e) => setKind(e.target.value as Category['kind'])}
-                >
-                  <option value="expense">הוצאה</option>
-                  <option value="income">הכנסה</option>
-                </Select>
-              )}
-            </Field>
+            <div>
+              <p className="mb-2 text-sm font-medium text-slate-700">סוג</p>
+              <Segmented
+                ariaLabel="סוג"
+                value={kind}
+                onChange={setKind}
+                options={[
+                  { value: 'expense', label: 'הוצאה' },
+                  { value: 'income', label: 'הכנסה' },
+                ]}
+              />
+            </div>
           ) : null}
 
-          <Field label="אופי הקטגוריה" hint={NATURE_LABELS[nature].help}>
-            {(id) => (
-              <Select
-                id={id}
-                value={nature}
-                onChange={(e) => setNature(e.target.value as CategoryNature)}
-              >
-                {(['essential', 'important', 'fun', 'reducible'] as const).map((n) => (
-                  <option key={n} value={n}>
-                    {NATURE_LABELS[n].label}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-700">אופי הקטגוריה</p>
+            <div role="radiogroup" aria-label="אופי הקטגוריה" className="grid gap-2 sm:grid-cols-2">
+              {EDITABLE_NATURES.map((n) => (
+                <ChoiceCard
+                  key={n}
+                  selected={nature === n}
+                  onSelect={() => setNature(n)}
+                  title={NATURE_LABELS[n].label}
+                  description={NATURE_LABELS[n].help}
+                />
+              ))}
+            </div>
+          </div>
 
           <Button full onClick={save} disabled={!name.trim()}>
             לשמור

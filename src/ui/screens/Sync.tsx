@@ -16,13 +16,17 @@
  *
  * 4. **בהתנגשות אין ברירת מחדל.** שני הכפתורים שקולים בעיצוב, ושניהם
  *    אומרים במפורש מה נמחק. כפתור ראשי אחד היה הופך בחירה להרגל.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** מצב הסנכרון הוא הכרטיס שעולה על
+ * הבאנר, עם מדליון גדול בצבע המצב ואריחי מספרים. הודעת שגיאה מופיעה
+ * אחריו ולא לפניו — הודעה צבעונית לא נקראת על הבאנר הכהה.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { Page } from '../components/layout';
 import { db } from '../../data/db';
 import { downloadFile } from '../download';
-import { Icon } from '../components/icons';
+import { Icon, type IconName } from '../components/icons';
 import { useToast } from '../Toast';
 import { formatDateHe } from '../../core/dates';
 import { deleteRemoteVault, SyncError } from '../../data/sync/client';
@@ -45,9 +49,11 @@ import {
   CardTitle,
   ConfirmDialog,
   LoadingState,
-  Row,
+  Medallion,
   Sheet,
+  type MedallionTone,
 } from '../components/ui';
+import { FeatureCard, Pill, StatTile } from '../components/premium';
 
 function messageOf(error: unknown): string {
   if (error instanceof VaultError || error instanceof SyncError) return error.message;
@@ -103,17 +109,26 @@ export function Sync() {
 
   if (checking && !status && !connected) return <LoadingState label="בודק מצב סנכרון…" />;
 
-  return (
-    <Page title="סנכרון" icon="cloud" subtitle="אותם נתונים בטלפון ובמחשב, מוצפנים" width="reading">
-      {error ? <Banner tone="caution" title="לא הצלחנו" body={error} /> : null}
+  const errorBanner = error ? <Banner tone="caution" title="לא הצלחנו" body={error} /> : null;
 
+  return (
+    <Page
+      title="סנכרון"
+      icon="cloud"
+      subtitle="אותם נתונים בטלפון ובמחשב, מוצפנים"
+      width="reading"
+      overlap
+    >
       {!connected ? (
-        <SyncStart
-          onDone={async () => {
-            await refresh();
-            toast({ messageHe: 'הסנכרון פעיל. מכאן זה קורה לבד.' });
-          }}
-        />
+        <>
+          <SyncStart
+            onDone={async () => {
+              await refresh();
+              toast({ messageHe: 'הסנכרון פעיל. מכאן זה קורה לבד.' });
+            }}
+          />
+          {errorBanner}
+        </>
       ) : (
         <>
           <StatusCard
@@ -122,6 +137,8 @@ export function Sync() {
             busy={busy}
             onRefresh={refresh}
           />
+
+          {errorBanner}
 
           <ActionsCard
             status={status}
@@ -137,9 +154,12 @@ export function Sync() {
           {pairingCode ? <PairingCodeCard code={pairingCode} /> : null}
 
           <Card>
-            <CardTitle>כיבוי</CardTitle>
+            <CardTitle icon="cloud-off">כיבוי</CardTitle>
+            <p className="mb-3 text-sm leading-relaxed text-slate-600">
+              ניתוק משאיר את הנתונים גם כאן וגם בענן. מחיקה מסירה את העותק המוצפן מהשרת.
+            </p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="ghost" onClick={() => setConfirmDisable(true)}>
+              <Button variant="secondary" onClick={() => setConfirmDisable(true)}>
                 לנתק את המכשיר הזה
               </Button>
               <Button variant="ghost" onClick={() => setConfirmDeleteRemote(true)}>
@@ -220,14 +240,14 @@ export function Sync() {
 // מצב
 // ---------------------------------------------------------------------------
 
-const ACTION_LABEL: Record<string, { title: string; icon: 'cloud-check' | 'cloud' | 'refresh' | 'git-merge' | 'cloud-off' }> = {
-  in_sync: { title: 'מסונכרן', icon: 'cloud-check' },
-  push: { title: 'יש שינויים להעלות', icon: 'cloud' },
-  push_initial: { title: 'עוד לא הועלה כלום', icon: 'cloud' },
-  pull: { title: 'יש עדכון בענן', icon: 'refresh' },
-  pull_initial: { title: 'יש נתונים בענן', icon: 'refresh' },
-  conflict: { title: 'התנגשות — צריך להכריע', icon: 'git-merge' },
-  nothing: { title: 'אין מה לסנכרן', icon: 'cloud-off' },
+const ACTION_LABEL: Record<string, { title: string; icon: IconName; tone: MedallionTone }> = {
+  in_sync: { title: 'מסונכרן', icon: 'cloud-check', tone: 'brand' },
+  push: { title: 'יש שינויים להעלות', icon: 'cloud', tone: 'brand' },
+  push_initial: { title: 'עוד לא הועלה כלום', icon: 'cloud', tone: 'neutral' },
+  pull: { title: 'יש עדכון בענן', icon: 'refresh', tone: 'brand' },
+  pull_initial: { title: 'יש נתונים בענן', icon: 'refresh', tone: 'brand' },
+  conflict: { title: 'התנגשות — צריך להכריע', icon: 'git-merge', tone: 'caution' },
+  nothing: { title: 'אין מה לסנכרן', icon: 'cloud-off', tone: 'neutral' },
 };
 
 function StatusCard({
@@ -245,30 +265,37 @@ function StatusCard({
   const label = ACTION_LABEL[action] ?? ACTION_LABEL.nothing!;
 
   return (
-    <Card>
-      <div className="flex items-start gap-3">
-        <Icon name={label.icon} className="mt-0.5 size-6 text-slate-500" />
-        <div className="flex-1">
-          <p className="text-base font-semibold text-slate-800">{label.title}</p>
+    <FeatureCard>
+      <div className="flex items-start gap-4">
+        <Medallion icon={label.icon} tone={label.tone} className="size-14" iconClassName="size-7" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-slate-600">מצב הסנכרון</p>
+          <p className="mt-0.5 text-xl leading-snug font-semibold text-slate-900">{label.title}</p>
           <p className="mt-1 text-sm leading-relaxed text-slate-600">
             {status?.decision.reasonHe ?? 'בודק…'}
           </p>
         </div>
       </div>
 
-      <div className="mt-4">
-        <Row label="עסקאות במכשיר">
-          <span className="num">{localCount}</span>
-        </Row>
-        <Row label="סונכרן לאחרונה">
-          {status?.lastSyncedAt ? formatDateHe(status.lastSyncedAt.slice(0, 10)) : 'עוד לא'}
-        </Row>
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <StatTile label="עסקאות במכשיר" value={<span className="num">{localCount}</span>} />
+        <StatTile
+          label="סונכרן לאחרונה"
+          dot={status?.lastSyncedAt ? 'brand' : 'slate'}
+          value={status?.lastSyncedAt ? formatDateHe(status.lastSyncedAt.slice(0, 10)) : 'עוד לא'}
+        />
       </div>
 
-      <Button variant="ghost" className="mt-3" disabled={Boolean(busy)} onClick={() => void onRefresh()}>
-        בדיקה מחדש
-      </Button>
-    </Card>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <Pill tone="brand" icon="lock">
+          מוצפן לפני שהוא יוצא מהמכשיר
+        </Pill>
+        <Button variant="ghost" disabled={Boolean(busy)} onClick={() => void onRefresh()}>
+          <Icon name="refresh" className="size-4" />
+          בדיקה מחדש
+        </Button>
+      </div>
+    </FeatureCard>
   );
 }
 
@@ -327,16 +354,29 @@ function ActionsCard({
     }
   }
 
+  const busyLine = busy ? (
+    <p className="mb-3 flex items-center gap-2 text-sm text-slate-600">
+      <span
+        aria-hidden
+        className="size-4 animate-spin rounded-full border-2 border-slate-200 border-t-brand-500"
+      />
+      {busy}
+    </p>
+  ) : null;
+
   if (action === 'conflict') {
     return (
       <Card>
-        <CardTitle>שני הצדדים השתנו</CardTitle>
+        <CardTitle icon="git-merge" iconTone="caution">
+          שני הצדדים השתנו
+        </CardTitle>
         <p className="text-sm leading-relaxed text-slate-600">
           גם כאן וגם בענן נכנסו שינויים מאז הסנכרון האחרון. אי אפשר למזג אותם, ולכן צריך לבחור צד
           — והצד השני יימחק. אנחנו לא בוחרים במקומך.
         </p>
 
         <div className="mt-4 space-y-2">
+          {busyLine}
           <Button variant="secondary" full disabled={!ready} onClick={() => void doPush()}>
             לשמור את מה שבמכשיר ({localCount} עסקאות) ולדרוס את הענן
           </Button>
@@ -345,12 +385,12 @@ function ActionsCard({
           </Button>
         </div>
 
-        <p className="mt-3 text-xs leading-relaxed text-slate-500">
+        <p className="mt-3 text-xs leading-relaxed text-slate-600">
           בשתי האפשרויות יירד קודם גיבוי של מה שעומד להימחק. לפני ההחלטה אפשר גם לראות מה יש בענן
           — הכפתור השני מציג תצוגה מקדימה לפני שהוא כותב.
         </p>
 
-        {!ready ? <p className="mt-2 text-xs text-slate-500">צריך להזין את סיסמת ההצפנה.</p> : null}
+        {!ready ? <p className="mt-2 text-xs text-slate-600">צריך להזין את סיסמת ההצפנה.</p> : null}
       </Card>
     );
   }
@@ -360,11 +400,11 @@ function ActionsCard({
 
   return (
     <Card>
-      <CardTitle>פעולות</CardTitle>
+      <CardTitle icon="cloud">פעולות</CardTitle>
 
-      {busy ? <p className="text-sm text-slate-600">{busy}</p> : null}
+      {busyLine}
 
-      <div className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         <Button full disabled={!ready} onClick={() => void doPush()}>
           {canPush ? 'להעלות לענן' : 'להעלות שוב'}
         </Button>
@@ -374,7 +414,7 @@ function ActionsCard({
       </div>
 
       {!ready && !busy ? (
-        <p className="mt-2 text-xs text-slate-500">צריך להזין את סיסמת ההצפנה קודם.</p>
+        <p className="mt-2 text-xs text-slate-600">צריך להזין את סיסמת ההצפנה קודם.</p>
       ) : null}
     </Card>
   );
@@ -418,18 +458,12 @@ function PullSheet({
           הנתונים מהענן פוענחו בהצלחה. הם עדיין לא נכתבו — זה המסך שלפני.
         </p>
 
-        <Card>
-          <Row label="עסקאות בענן">
-            <span className="num">{incoming}</span>
-          </Row>
-          <Row label="עסקאות כאן עכשיו">
-            <span className="num">{localCount}</span>
-          </Row>
-          <Row label="סה״כ רשומות">
-            <span className="num">{pending.totalRecords}</span>
-          </Row>
-          {pending.deviceLabel ? <Row label="הועלה מ־">{pending.deviceLabel}</Row> : null}
-        </Card>
+        <div className="grid grid-cols-2 gap-2">
+          <StatTile label="עסקאות בענן" dot="brand" value={<span className="num">{incoming}</span>} />
+          <StatTile label="עסקאות כאן עכשיו" value={<span className="num">{localCount}</span>} />
+          <StatTile label="סה״כ רשומות" value={<span className="num">{pending.totalRecords}</span>} />
+          {pending.deviceLabel ? <StatTile label="הועלה מ־" value={pending.deviceLabel} /> : null}
+        </div>
 
         {incoming < localCount ? (
           <Banner
@@ -439,7 +473,8 @@ function PullSheet({
           />
         ) : null}
 
-        <p className="text-xs leading-relaxed text-slate-500">
+        <p className="flex items-center gap-2 text-xs leading-relaxed text-slate-600">
+          <Icon name="save" className="size-4 shrink-0 text-slate-500" />
           לפני הכתיבה יירד אוטומטית קובץ גיבוי של המצב הנוכחי.
         </p>
 

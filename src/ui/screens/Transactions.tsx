@@ -14,6 +14,11 @@
  * שתי התצוגות נבנות מאותם נתונים ומפעילות את אותן פונקציות
  * (`setEditing`, `remove`, `setExpandedCharge`). אין כאן שני מסלולי
  * נתונים — יש סידור אחר לאותו מסלול.
+ *
+ * ⚠️ **v3 — חמש רשימות נפתחות הפכו לשתיים.** סוג העסקה הוא בקרה
+ * מקוטעת, החודש נשאר גלוי, ושלושת המסננים הנדירים (קטגוריה, חשבון,
+ * מקור) עברו לגיליון "סינון" עם מונה. חמש רשימות נפתחות בראש המסך
+ * נראו כמו טופס, והיו רוב המסך בטלפון.
  */
 
 import { Fragment, useMemo, useState } from 'react';
@@ -29,15 +34,15 @@ import { formatDateHe, formatWeekdayHe, monthOf } from '../../core/dates';
 import { formatMonthHe } from '../../core/dates';
 import type { CardTransaction, Transaction } from '../../core/types';
 import { Page } from '../components/layout';
-import { Button, Card, EmptyState, LoadingState, Money, Select } from '../components/ui';
+import { Button, Card, EmptyState, Field, LoadingState, Money, Select, Sheet } from '../components/ui';
+import { FeatureCard, IconButton, Segmented, StatTile } from '../components/premium';
 import { TransactionForm } from './TransactionForm';
-import { Icon } from '../components/icons';
 
 type DirectionFilter = 'all' | 'income' | 'expense';
 type SourceFilter = 'all' | 'bank' | 'cash' | 'card';
 
 /**
- * עיגול בצבע הקטגוריה, עם האות הראשונה של שם העסקה.
+ * ריבוע מעוגל בצבע הקטגוריה, עם האות הראשונה של שם העסקה.
  *
  * ⚠️ `aria-hidden` — השם והקטגוריה כבר כתובים בשורה. העיגול הוא דרך
  * לסרוק רשימה ארוכה בעין, לא מידע נוסף.
@@ -51,7 +56,7 @@ function CategoryAvatar({ color, label }: { color: string | undefined; label: st
   return (
     <span
       aria-hidden="true"
-      className="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+      className="flex size-10 shrink-0 items-center justify-center rounded-[0.875rem] text-sm font-bold"
       style={{
         background: `color-mix(in oklab, ${tint} 18%, transparent)`,
         color: `color-mix(in oklab, ${tint} 55%, var(--color-slate-900))`,
@@ -61,6 +66,12 @@ function CategoryAvatar({ color, label }: { color: string | undefined; label: st
     </span>
   );
 }
+
+const DIRECTION_OPTIONS: { value: DirectionFilter; label: string }[] = [
+  { value: 'all', label: 'הכל' },
+  { value: 'expense', label: 'הוצאות' },
+  { value: 'income', label: 'הכנסות' },
+];
 
 export function Transactions({ onAddTransaction }: { onAddTransaction: () => void }) {
   const { snapshot, dashboard, loading } = useAppData();
@@ -73,6 +84,7 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [expandedCharge, setExpandedCharge] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // עסקאות הכרטיס נטענות בנפרד — הן אינן תנועות בנק
   const cardTransactions = useLiveQuery(() => db.cardTransactions.toArray(), []) ?? [];
@@ -148,6 +160,9 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
 
   if (loading) return <LoadingState />;
 
+  /** כמה מהמסננים שבגיליון פעילים — מוצג כמונה על הכפתור. */
+  const extraFilters = [categoryId, accountId, sourceFilter].filter((v) => v !== 'all').length;
+
   /**
    * ⚠️ מחיקה בלי דיאלוג "בטוח?", ועם ביטול אחריה.
    *
@@ -163,13 +178,21 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
     });
   }
 
+  const signedAmount = (t: Transaction) => (
+    <Money
+      agorot={t.type === 'income' ? t.amountAgorot : -t.amountAgorot}
+      signed
+      className={`text-[0.9375rem] font-semibold ${t.type === 'income' ? 'text-accent' : 'text-slate-900'}`}
+    />
+  );
+
   /** פירוט הכרטיס — משותף לשתי התצוגות. */
   const cardDetailRows = (detail: CardTransaction[]) => (
     <>
       {detail.map((d) => (
-        <div key={d.id} className="flex items-baseline justify-between gap-2 py-1">
+        <div key={d.id} className="flex items-baseline justify-between gap-2 py-1.5">
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm text-slate-800">{d.merchant}</span>
+            <span className="block truncate text-sm font-medium text-slate-800">{d.merchant}</span>
             <span className="text-xs text-slate-500">
               {formatDateHe(d.purchaseDate)}
               <span aria-hidden className="mx-1.5 text-slate-400">
@@ -190,11 +213,11 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
           </span>
           <Money
             agorot={d.amountAgorot}
-            className={`text-sm ${d.isRefund ? 'text-accent' : 'text-slate-900'}`}
+            className={`text-sm font-medium ${d.isRefund ? 'text-accent' : 'text-slate-900'}`}
           />
         </div>
       ))}
-      <p className="mt-1 border-t border-slate-200 pt-1 text-xs text-slate-500">
+      <p className="mt-1 border-t border-slate-200 pt-1.5 text-xs text-slate-500">
         כרטיס •••{last4ById.get(detail[0]!.cardId) ?? ''} · הסכום כבר ירד מהחשבון
       </p>
     </>
@@ -214,121 +237,133 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
     />
   );
 
+  /** שם תצוגה, או כפתור שפותח את פירוט הכרטיס. */
+  const title = (t: Transaction, detail: CardTransaction[], expanded: boolean) => {
+    const cardCharge = detectCardCharge(t.merchant);
+    if (cardCharge && detail.length > 0) {
+      return (
+        <button
+          type="button"
+          onClick={() => setExpandedCharge(expanded ? null : t.id)}
+          aria-expanded={expanded}
+          className="block max-w-full text-start"
+        >
+          <span className="block truncate font-semibold text-slate-900">
+            כרטיס {cardCharge.last4 ?? ''}
+          </span>
+          <span className="block text-xs font-semibold text-accent">
+            {detail.length} עסקאות <span aria-hidden>{expanded ? '▲' : '▼'}</span>
+          </span>
+        </button>
+      );
+    }
+    return null;
+  };
+
   /**
    * טבלת דסקטופ.
    *
    * ⚠️ `overflow-x-auto` על העטיפה, לא על העמוד. אם הטבלה צרה מדי
    * לתוכן שלה (חלון של 1024 עם שמות ארוכים), היא גוללת בתוך עצמה —
    * ולא דוחפת את כל הדף לרוחב.
+   *
+   * ⚠️ שורה אחת בטבלה לכל עסקה, בלי שורות כותרת לתאריכים. יש בדיקה
+   * שסופרת שורות, וקיבוץ בתוך טבלה גם שובר ניווט בקורא מסך.
    */
   const desktopTable = (
     <Card className="overflow-hidden p-0">
       <div className="overflow-x-auto">
-        {/* ⚠️ `min-w` נמוך מספיק כדי להיכנס ב-1024 בלי גלילה פנימית,
-            וגבוה מספיק כדי שהעמודות לא ייצמדו זו לזו. מתחת לזה
-            העטיפה גוללת — הדף עצמו לעולם לא. */}
         <table className="w-full min-w-[40rem] border-collapse text-sm">
           <caption className="sr-only">רשימת העסקאות, מהחדשה לישנה</caption>
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-start">
-              <th scope="col" className="px-4 py-3 text-start font-semibold text-slate-600">
+            <tr className="border-b border-slate-200/70 bg-slate-50/80 text-start">
+              <th scope="col" className="px-5 py-3 text-start text-xs font-semibold text-slate-600">
                 תאריך
               </th>
-              <th scope="col" className="px-4 py-3 text-start font-semibold text-slate-600">
+              <th scope="col" className="px-5 py-3 text-start text-xs font-semibold text-slate-600">
                 תיאור
               </th>
-              <th scope="col" className="px-4 py-3 text-start font-semibold text-slate-600">
+              <th scope="col" className="px-5 py-3 text-start text-xs font-semibold text-slate-600">
                 קטגוריה
               </th>
-              <th scope="col" className="px-4 py-3 text-start font-semibold text-slate-600">
+              <th scope="col" className="px-5 py-3 text-start text-xs font-semibold text-slate-600">
                 חשבון
               </th>
-              <th scope="col" className="px-4 py-3 text-end font-semibold text-slate-600">
+              <th scope="col" className="px-5 py-3 text-end text-xs font-semibold text-slate-600">
                 סכום
               </th>
-              <th scope="col" className="px-4 py-3 text-end font-semibold text-slate-600">
+              <th scope="col" className="px-5 py-3 text-end text-xs font-semibold text-slate-600">
                 <span className="sr-only">פעולות</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((t) => {
-              const cardCharge = detectCardCharge(t.merchant);
               const detail = detailByCharge.get(t.id) ?? [];
               const isExpanded = expandedCharge === t.id;
-              const hasDetail = cardCharge !== null && detail.length > 0;
+              const color = categoryColor.get(t.categoryId);
 
               return (
                 <Fragment key={t.id}>
-                  <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-4 py-3 align-top text-slate-600">
-                      <span className="num">{formatDateHe(t.date)}</span>
+                  <tr className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70">
+                    <td className="px-5 py-3 align-middle text-slate-600">
+                      <span className="num block font-medium text-slate-800">{formatDateHe(t.date)}</span>
                       <span className="block text-xs text-slate-500">{formatWeekdayHe(t.date)}</span>
                     </td>
-                    <td className="max-w-xs px-4 py-3 align-top">
-                      {hasDetail ? (
-                        <button
-                          type="button"
-                          onClick={() => setExpandedCharge(isExpanded ? null : t.id)}
-                          aria-expanded={isExpanded}
-                          className="text-start font-medium text-slate-900"
-                        >
-                          כרטיס {cardCharge.last4 ?? ''}
-                          <span className="block text-xs font-semibold text-accent">
-                            {detail.length} עסקאות <span aria-hidden>{isExpanded ? '▲' : '▼'}</span>
-                          </span>
-                        </button>
-                      ) : (
-                        <>
-                          <span className="block truncate font-medium text-slate-900">
-                            {t.merchant || categoryName.get(t.categoryId) || 'ללא שם'}
-                          </span>
-                          {t.note ? (
-                            <span className="block truncate text-xs text-slate-500">{t.note}</span>
-                          ) : null}
-                        </>
-                      )}
+                    <td className="max-w-xs px-5 py-3 align-middle">
+                      <div className="flex items-center gap-3">
+                        <CategoryAvatar
+                          color={color}
+                          label={t.merchant || categoryName.get(t.categoryId) || '?'}
+                        />
+                        <div className="min-w-0">
+                          {title(t, detail, isExpanded) ?? (
+                            <>
+                              <span className="block truncate font-semibold text-slate-900">
+                                {t.merchant || categoryName.get(t.categoryId) || 'ללא שם'}
+                              </span>
+                              {t.note ? (
+                                <span className="block truncate text-xs text-slate-500">{t.note}</span>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 align-top text-slate-600">
-                      {categoryName.get(t.categoryId) ?? 'לא ידוע'}
+                    <td className="px-5 py-3 align-middle">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                        <span
+                          aria-hidden
+                          className="size-1.5 rounded-full"
+                          style={{ background: color ?? 'var(--color-slate-400)' }}
+                        />
+                        {categoryName.get(t.categoryId) ?? 'לא ידוע'}
+                      </span>
                     </td>
-                    <td className="px-4 py-3 align-top text-slate-600">
+                    <td className="px-5 py-3 align-middle text-slate-600">
                       {accountName.get(t.accountId) ?? '—'}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-end align-top">
-                      <Money
-                        agorot={t.type === 'income' ? t.amountAgorot : -t.amountAgorot}
-                        signed
-                        className={`font-semibold ${
-                          t.type === 'income' ? 'text-accent' : 'text-slate-900'
-                        }`}
-                      />
-                    </td>
-                    <td className="px-2 py-2 align-top">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          type="button"
+                    <td className="whitespace-nowrap px-5 py-3 text-end align-middle">{signedAmount(t)}</td>
+                    <td className="px-3 py-2 align-middle">
+                      <div className="flex justify-end gap-0.5">
+                        <IconButton
+                          icon="pencil"
+                          label={`עריכת ${t.merchant || 'עסקה'}`}
                           onClick={() => setEditing(t)}
-                          aria-label={`עריכת ${t.merchant || 'עסקה'}`}
-                          className="flex size-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
-                        >
-                          <Icon name="pencil" className="size-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => remove(t)}
-                          aria-label={`מחיקת ${t.merchant || 'עסקה'}`}
-                          className="flex size-11 items-center justify-center rounded-lg text-slate-500 hover:bg-alertred-100"
-                        >
-                          <Icon name="trash" className="size-4" />
-                        </button>
+                        />
+                        <IconButton
+                          icon="trash"
+                          tone="danger"
+                          label={`מחיקת ${t.merchant || 'עסקה'}`}
+                          onClick={() => void remove(t)}
+                        />
                       </div>
                     </td>
                   </tr>
 
                   {isExpanded ? (
-                    <tr className="border-b border-slate-100 bg-slate-50">
-                      <td colSpan={6} className="px-4 py-2">
+                    <tr className="border-b border-slate-100 bg-slate-50/70">
+                      <td colSpan={6} className="px-5 py-2">
                         {cardDetailRows(detail)}
                       </td>
                     </tr>
@@ -342,51 +377,39 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
     </Card>
   );
 
+  /**
+   * ⚠️ כל יום הוא ילד ישיר של המסך, ולא כולם בתוך עטיפה אחת — כך הימים
+   * עולים בזה אחר זה (`.stagger`) במקום שכל הרשימה תקפוץ בבת אחת.
+   *
+   * ⚠️ שם החשבון ירד מהשורה בטלפון. עם עיגול הקטגוריה הוא נחתך בכל
+   * שורה; הקטגוריה חשובה יותר, והחשבון זמין בסינון ובעריכה.
+   */
   const mobileList = grouped.map(([date, items]) => (
     <section key={date}>
-      <h2 className="mb-1.5 px-1 text-xs font-semibold text-slate-500">
-        {formatWeekdayHe(date)} · {formatDateHe(date)}
-      </h2>
+      <div className="mb-2 flex items-baseline justify-between px-1">
+        <h2 className="text-sm font-semibold text-slate-900">{formatWeekdayHe(date)}</h2>
+        <span className="num text-xs text-slate-500">{formatDateHe(date)}</span>
+      </div>
       <div className="overflow-hidden rounded-[1.25rem] border border-slate-200/70 bg-surface elev-1">
         {items.map((t, i) => {
-          const cardCharge = detectCardCharge(t.merchant);
           const detail = detailByCharge.get(t.id) ?? [];
           const isExpanded = expandedCharge === t.id;
 
           return (
             <div key={t.id} className={i > 0 ? 'border-t border-slate-100' : ''}>
-              <div className="flex items-center gap-3 p-3">
+              <div className="flex items-center gap-3 py-3 ps-3.5 pe-1.5">
                 <CategoryAvatar
                   color={categoryColor.get(t.categoryId)}
                   label={t.merchant || categoryName.get(t.categoryId) || '?'}
                 />
                 <div className="min-w-0 flex-1">
-                  {/* חיוב כרטיס עם פירוט מוצג כשם הכרטיס, ופותח את הפירוט */}
-                  {cardCharge && detail.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedCharge(isExpanded ? null : t.id)}
-                      aria-expanded={isExpanded}
-                      className="text-start"
-                    >
-                      <p className="truncate font-medium text-slate-900">
-                        כרטיס {cardCharge.last4 ?? ''}
-                      </p>
-                      <p className="text-xs font-semibold text-accent">
-                        {detail.length} עסקאות {isExpanded ? '▲' : '▼'}
-                      </p>
-                    </button>
-                  ) : (
+                  {title(t, detail, isExpanded) ?? (
                     <>
-                      <p className="truncate font-medium text-slate-900">
+                      <p className="truncate font-semibold text-slate-900">
                         {t.merchant || categoryName.get(t.categoryId) || 'ללא שם'}
                       </p>
                       <p className="truncate text-xs text-slate-500">
                         {categoryName.get(t.categoryId) ?? 'לא ידוע'}
-                        <span aria-hidden className="mx-1.5 text-slate-400">
-                          ·
-                        </span>
-                        {accountName.get(t.accountId) ?? '—'}
                         {t.note ? (
                           <>
                             <span aria-hidden className="mx-1.5 text-slate-400">
@@ -399,38 +422,25 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
                     </>
                   )}
                 </div>
-                <div className="text-end">
-                  <Money
-                    agorot={t.type === 'income' ? t.amountAgorot : -t.amountAgorot}
-                    signed
-                    className={`font-semibold ${
-                      t.type === 'income' ? 'text-accent' : 'text-slate-900'
-                    }`}
-                  />
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
+                <div className="shrink-0 text-end">{signedAmount(t)}</div>
+                <div className="flex shrink-0">
+                  <IconButton
+                    icon="pencil"
+                    label={`עריכת ${t.merchant || 'עסקה'}`}
                     onClick={() => setEditing(t)}
-                    aria-label={`עריכת ${t.merchant || 'עסקה'}`}
-                    className="flex size-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
-                  >
-                    <Icon name="pencil" className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => remove(t)}
-                    aria-label={`מחיקת ${t.merchant || 'עסקה'}`}
-                    className="flex size-11 items-center justify-center rounded-lg text-slate-500 hover:bg-alertred-100"
-                  >
-                    <Icon name="trash" className="size-4" />
-                  </button>
+                  />
+                  <IconButton
+                    icon="trash"
+                    tone="danger"
+                    label={`מחיקת ${t.merchant || 'עסקה'}`}
+                    onClick={() => void remove(t)}
+                  />
                 </div>
               </div>
 
               {/* פירוט הכרטיס — מה באמת נקנה */}
               {isExpanded ? (
-                <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
+                <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-2">
                   {cardDetailRows(detail)}
                 </div>
               ) : null}
@@ -446,6 +456,7 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
       title="עסקאות"
       icon="receipt"
       subtitle="כל מה שנכנס ויצא, לפי תאריך"
+      overlap
       {...(dashboard
         ? {
             stats: [
@@ -455,12 +466,20 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
           }
         : {})}
     >
-      <Card>
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+      <FeatureCard>
+        <Segmented
+          ariaLabel="סינון לפי סוג"
+          value={direction}
+          onChange={setDirection}
+          options={DIRECTION_OPTIONS}
+        />
+
+        <div className="mt-3 flex gap-2">
           <Select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             aria-label="סינון לפי חודש"
+            className="flex-1"
           >
             <option value="all">כל החודשים</option>
             {months.map((m) => (
@@ -469,58 +488,94 @@ export function Transactions({ onAddTransaction }: { onAddTransaction: () => voi
               </option>
             ))}
           </Select>
-          <Select
-            value={direction}
-            onChange={(e) => setDirection(e.target.value as DirectionFilter)}
-            aria-label="סינון לפי סוג"
-          >
-            <option value="all">הכל</option>
-            <option value="expense">הוצאות</option>
-            <option value="income">הכנסות</option>
-          </Select>
-          <Select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            aria-label="סינון לפי קטגוריה"
-          >
-            <option value="all">כל הקטגוריות</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-            aria-label="סינון לפי חשבון"
-          >
-            <option value="all">כל החשבונות</option>
-            {(snapshot?.accounts ?? []).map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
-            aria-label="סינון לפי מקור"
-          >
-            <option value="all">כל המקורות</option>
-            <option value="bank">בנק</option>
-            <option value="cash">מזומן</option>
-            <option value="card">כרטיס אשראי</option>
-          </Select>
+          <Button variant="secondary" onClick={() => setFiltersOpen(true)} className="min-h-12 shrink-0">
+            סינון
+            {extraFilters > 0 ? (
+              <span className="num flex size-5 items-center justify-center rounded-full bg-brand-700 text-xs text-white">
+                {extraFilters}
+              </span>
+            ) : null}
+          </Button>
         </div>
 
-        <p className="mt-3 text-sm text-slate-600">
-          {filtered.length} עסקאות · נכנס <Money agorot={totals.income} className="font-semibold" />{' '}
-          · יצא <Money agorot={totals.expense} className="font-semibold" />
-        </p>
-      </Card>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <StatTile label="עסקאות" value={<span className="num">{filtered.length}</span>} />
+          <StatTile label="נכנס" dot="brand" value={<Money agorot={totals.income} />} />
+          <StatTile label="יצא" dot="slate" value={<Money agorot={totals.expense} />} />
+        </div>
+      </FeatureCard>
 
       {grouped.length === 0 ? emptyState : isDesktop ? desktopTable : mobileList}
+
+      <Sheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="סינון">
+        <div className="space-y-4">
+          <Field label="קטגוריה">
+            {(id) => (
+              <Select
+                id={id}
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                aria-label="סינון לפי קטגוריה"
+              >
+                <option value="all">כל הקטגוריות</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field label="חשבון">
+            {(id) => (
+              <Select
+                id={id}
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                aria-label="סינון לפי חשבון"
+              >
+                <option value="all">כל החשבונות</option>
+                {(snapshot?.accounts ?? []).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field label="מקור">
+            {(id) => (
+              <Select
+                id={id}
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
+                aria-label="סינון לפי מקור"
+              >
+                <option value="all">כל המקורות</option>
+                <option value="bank">בנק</option>
+                <option value="cash">מזומן</option>
+                <option value="card">כרטיס אשראי</option>
+              </Select>
+            )}
+          </Field>
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="secondary"
+              full
+              onClick={() => {
+                setCategoryId('all');
+                setAccountId('all');
+                setSourceFilter('all');
+              }}
+            >
+              איפוס
+            </Button>
+            <Button full onClick={() => setFiltersOpen(false)}>
+              להציג <span className="num">{filtered.length}</span> עסקאות
+            </Button>
+          </div>
+        </div>
+      </Sheet>
 
       <TransactionForm open={editing !== null} editing={editing} onClose={() => setEditing(null)} />
     </Page>

@@ -3,6 +3,10 @@
  *
  * קצר בכוונה. סיכום שדורש גלילה ארוכה לא נקרא, וסיכום שלא נקרא
  * שווה לאותו דבר כמו סיכום שלא קיים.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** בחירת התקופה, הכותרת וההפרש
+ * הגדול יושבים בכרטיס אחד שעולה על הבאנר. הקטגוריות הן פסים בצבע
+ * הקטגוריה, והיתרה החודשית היא שני אריחים עם החץ ביניהם.
  */
 
 import { Page } from '../components/layout';
@@ -18,57 +22,50 @@ import {
 import { getEffectiveExpenses } from '../../core/effectiveSpending';
 import { totalBalance } from '../../core/balance';
 import { addDays, formatDateHe, formatMonthHe, monthOf, monthStart } from '../../core/dates';
-import { Card, CardTitle, LoadingState, Money, Row } from '../components/ui';
+import { Card, CardTitle, LoadingState, Money } from '../components/ui';
+import { BigNumber, FeatureCard, Pill, Segmented, StatTile } from '../components/premium';
+import { CategoryBars } from '../components/charts';
+import { AnimatedMoney } from '../motion';
 
 type Tab = 'week' | 'month';
 
-function ReviewBody({ review }: { review: PeriodReview }) {
+function ReviewDetails({
+  review,
+  colors,
+}: {
+  review: PeriodReview;
+  colors: ReadonlyMap<string, string>;
+}) {
   return (
     <>
-      <Card>
-        <p className="text-sm font-medium text-slate-800">{review.headlineHe}</p>
-        <div className="mt-3">
-          <Row label="נכנס">
-            <Money agorot={review.incomeAgorot} />
-          </Row>
-          <Row label="יצא">
-            <Money agorot={review.expenseAgorot} />
-          </Row>
-          <Row label="ההפרש" strong>
-            <Money agorot={review.netAgorot} signed />
-          </Row>
-        </div>
-        {review.comparison.changeSharePct !== null ? (
-          <p className="mt-2 text-xs text-slate-500">
-            בתקופה הקודמת יצאו <Money agorot={review.comparison.previousExpenseAgorot} />
-          </p>
-        ) : null}
-      </Card>
-
       {review.usedReserve ? (
         <Card tone="caution">
-          <CardTitle>נגעת בכסף ששמור לעתיד</CardTitle>
+          <CardTitle icon="alert-triangle" iconTone="caution">
+            נגעת בכסף ששמור לעתיד
+          </CardTitle>
           <p className="text-sm leading-relaxed text-slate-700">
-            בתקופה הזו יצאו <Money agorot={review.usedReserveAgorot} /> מעבר להקצבה. זה לא אסון —
-            אבל שווה לדעת, כי הכסף הזה היה מיועד לחודשים הבאים.
+            בתקופה הזו יצאו <Money agorot={review.usedReserveAgorot} className="font-semibold" /> מעבר
+            להקצבה. זה לא אסון — אבל שווה לדעת, כי הכסף הזה היה מיועד לחודשים הבאים.
           </p>
         </Card>
       ) : null}
 
       {review.topCategories.length > 0 ? (
         <Card>
-          <CardTitle>הכי הרבה יצא על</CardTitle>
-          {review.topCategories.map((line) => (
-            <Row key={line.categoryId} label={line.categoryName}>
-              <Money agorot={line.amountAgorot} />
-            </Row>
-          ))}
+          <CardTitle icon="tag">הכי הרבה יצא על</CardTitle>
+          <CategoryBars
+            colors={colors}
+            slices={review.topCategories.map((line) => ({
+              categoryId: line.categoryId,
+              categoryName: line.categoryName,
+              amountAgorot: line.amountAgorot,
+            }))}
+          />
         </Card>
       ) : review.categoriesHiddenReasonHe ? (
         <Card>
-          <p className="text-sm leading-relaxed text-slate-600">
-            {review.categoriesHiddenReasonHe}
-          </p>
+          <CardTitle icon="info">הפילוח לקטגוריות</CardTitle>
+          <p className="text-sm leading-relaxed text-slate-600">{review.categoriesHiddenReasonHe}</p>
         </Card>
       ) : null}
     </>
@@ -154,58 +151,87 @@ export function Review() {
   }
 
   const active = tab === 'week' ? reviews.week : reviews.month;
+  const colorById = new Map(snapshot.categories.map((c) => [c.id, c.color]));
+  const { comparison } = active;
 
   return (
-    <Page title="סיכום" icon="calendar" subtitle="מה קרה השבוע ומה קרה החודש">
+    <Page title="סיכום" icon="calendar" subtitle="מה קרה השבוע ומה קרה החודש" overlap>
+      {/* ── ⭐ התקופה ────────────────────────────────────────────── */}
+      <FeatureCard>
+        <Segmented
+          role="tablist"
+          ariaLabel="תקופת הסיכום"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'week', label: 'השבוע' },
+            { value: 'month', label: formatMonthHe(monthOf(snapshot.today)) },
+          ]}
+        />
 
-      <div role="tablist" aria-label="תקופת הסיכום" className="flex gap-2">
-        {(
-          [
-            { id: 'week' as const, label: 'השבוע' },
-            { id: 'month' as const, label: formatMonthHe(monthOf(snapshot.today)) },
-          ]
-        ).map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === option.id}
-            onClick={() => setTab(option.id)}
-            className={`min-h-11 flex-1 rounded-xl border text-sm font-semibold transition ${
-              tab === option.id
-                ? 'border-brand-700 bg-brand-50 text-accent-strong'
-                : 'border-slate-200 bg-surface text-slate-600 elev-1 hover:border-slate-300'
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+        <p className="mt-4 text-xs text-slate-500">
+          <span className="num">{formatDateHe(active.from)}</span> –{' '}
+          <span className="num">{formatDateHe(active.to)}</span>
+        </p>
+        <p className="mt-1 text-base font-semibold leading-snug text-slate-900">{active.headlineHe}</p>
 
-      <p className="px-1 text-xs text-slate-500">
-        {formatDateHe(active.from)} – {formatDateHe(active.to)}
-      </p>
+        <p className="mt-4 text-xs text-slate-600">ההפרש בתקופה</p>
+        <div className="mt-1">
+          <BigNumber tone={active.netAgorot < 0 ? 'caution' : 'accent'}>
+            <AnimatedMoney agorot={active.netAgorot} signed />
+          </BigNumber>
+        </div>
 
-      <ReviewBody review={active} />
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <StatTile label="נכנס" dot="brand" value={<Money agorot={active.incomeAgorot} />} />
+          <StatTile label="יצא" dot="slate" value={<Money agorot={active.expenseAgorot} />} />
+        </div>
+
+        {comparison.changeSharePct !== null ? (
+          <div className="mt-3">
+            <Pill tone={comparison.changeSharePct > 0 ? 'caution' : 'brand'}>
+              בתקופה הקודמת יצאו <Money agorot={comparison.previousExpenseAgorot} />
+            </Pill>
+          </div>
+        ) : null}
+      </FeatureCard>
+
+      <ReviewDetails review={active} colors={colorById} />
 
       {tab === 'month' ? (
         <Card>
-          <CardTitle>היתרה החודש</CardTitle>
-          <Row label="בתחילת החודש">
-            <Money agorot={reviews.month.openingBalanceAgorot} />
-          </Row>
-          <Row label="עכשיו" strong>
-            <Money agorot={reviews.month.closingBalanceAgorot} />
-          </Row>
+          <CardTitle icon="wallet" iconTone="brand">
+            היתרה החודש
+          </CardTitle>
+          <div className="flex items-stretch gap-2">
+            <StatTile
+              className="flex-1"
+              label="בתחילת החודש"
+              value={<Money agorot={reviews.month.openingBalanceAgorot} />}
+            />
+            <span aria-hidden className="flex items-center text-lg text-slate-400">
+              ←
+            </span>
+            <StatTile
+              className="flex-1"
+              label="עכשיו"
+              dot="brand"
+              value={<Money agorot={reviews.month.closingBalanceAgorot} />}
+            />
+          </div>
           {reviews.month.metBudget !== null ? (
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              {reviews.month.metBudget
-                ? `ניצלת ${reviews.month.budgetUsedPct}% מהתקציב — בתוך המסגרת.`
-                : `ניצלת ${reviews.month.budgetUsedPct}% מהתקציב. החודש הבא מתחיל מחדש.`}
-            </p>
+            <div className="mt-3">
+              <Pill tone={reviews.month.metBudget ? 'brand' : 'caution'}>
+                ניצלת <span className="num">{reviews.month.budgetUsedPct}%</span> מהתקציב
+                {reviews.month.metBudget ? ' — בתוך המסגרת' : ''}
+              </Pill>
+              {reviews.month.metBudget ? null : (
+                <p className="mt-2 text-xs leading-relaxed text-slate-600">החודש הבא מתחיל מחדש.</p>
+              )}
+            </div>
           ) : null}
           {reviews.opaqueThisMonth > 0 ? (
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">
               מתוכם <Money agorot={reviews.opaqueThisMonth} /> חיובי כרטיס בלי פירוט.
             </p>
           ) : null}

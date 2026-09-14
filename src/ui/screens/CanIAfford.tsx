@@ -5,6 +5,10 @@
  * היא לוקחת יותר מכמה שניות היא לא תישאל בכלל.
  *
  * ⚠️ המסך לא מחשב כלום — הכל מגיע מ-`core/purchaseSimulation.ts`.
+ *
+ * ⚠️ **v3 — אותה שפה כמו לוח הבקרה.** הסכום בפאנל משלו עם סכומים
+ * מהירים כגלולות, התשובה בכרטיס עם מדליון בצבע ההחלטה, והמספרים
+ * שאחרי הרכישה באריחים.
  */
 
 import { useState } from 'react';
@@ -25,10 +29,13 @@ import {
   Card,
   CardTitle,
   EmptyState,
+  Medallion,
   Money,
   Row,
   Sheet,
+  type MedallionTone,
 } from '../components/ui';
+import { StatTile } from '../components/premium';
 
 const QUICK_AMOUNTS = [50, 100, 150, 250, 500];
 
@@ -39,18 +46,22 @@ const VERDICT_ICON: Record<PurchaseVerdict, IconName> = {
   over_safe: 'alert-triangle',
 };
 
-const VERDICT_ICON_TONE: Record<PurchaseVerdict, string> = {
-  affordable: 'size-5 text-accent',
-  tight: 'size-5 text-caution-600',
-  uses_reserve: 'size-5 text-caution-600',
-  over_safe: 'size-5 text-danger',
+/**
+ * ⚠️ האייקון והצבע נגזרים מ-`verdict`, לא מהטקסט. הם קישוט של אותה
+ * החלטה שכבר התקבלה בשכבת החישוב — ולכן אי אפשר שהם ייפרדו ממנה.
+ */
+const VERDICT_MEDALLION: Record<PurchaseVerdict, MedallionTone> = {
+  affordable: 'brand',
+  tight: 'caution',
+  uses_reserve: 'caution',
+  over_safe: 'danger',
 };
 
-const VERDICT_TONE: Record<PurchaseVerdict, string> = {
-  affordable: 'border-brand-500/50 bg-brand-50',
-  tight: 'border-caution-600/40 bg-caution-100/40',
-  uses_reserve: 'border-caution-600/60 bg-caution-100/60',
-  over_safe: 'border-alertred-600/40 bg-alertred-100/50',
+const VERDICT_SURFACE: Record<PurchaseVerdict, string> = {
+  affordable: 'border-brand-100 bg-brand-50/70',
+  tight: 'border-caution-300/50 bg-caution-100/40',
+  uses_reserve: 'border-caution-300/70 bg-caution-100/60',
+  over_safe: 'border-alertred-100 bg-alertred-100/50',
 };
 
 export function CanIAfford({
@@ -90,87 +101,113 @@ export function CanIAfford({
         />
       ) : (
         <div className="space-y-4">
-          <AmountInput
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            autoFocus
-            aria-label="סכום הרכישה"
-            placeholder="כמה זה עולה?"
-          />
-
-          <div className="flex flex-wrap gap-2">
-            {QUICK_AMOUNTS.map((quick) => (
-              <button
-                key={quick}
-                type="button"
-                onClick={() => setAmount(String(quick))}
-                className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-surface px-3 text-sm font-semibold text-slate-700 elev-1 transition hover:border-slate-300"
-              >
-                <span className="num">₪{quick}</span>
-              </button>
-            ))}
+          <div className="rounded-[1.25rem] bg-slate-50 p-4">
+            <AmountInput
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              autoFocus
+              aria-label="סכום הרכישה"
+              placeholder="כמה זה עולה?"
+            />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {QUICK_AMOUNTS.map((quick) => {
+                const chosen = amount === String(quick);
+                return (
+                  <button
+                    key={quick}
+                    type="button"
+                    aria-pressed={chosen}
+                    onClick={() => setAmount(String(quick))}
+                    className={`min-h-10 flex-1 rounded-full px-3 text-sm font-semibold transition active:scale-95 ${
+                      chosen
+                        ? 'bg-brand-700 text-white elev-btn'
+                        : 'bg-surface text-slate-700 elev-1 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="num">₪{quick}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* ── התשובה ──────────────────────────────────────── */}
           {result ? (
             <>
-              <div className={`rounded-2xl border p-4 ${VERDICT_TONE[result.verdict]}`}>
-                {/* ⚠️ האייקון נגזר מ-`verdict`, לא מהטקסט. הצבע והצורה
-                    הם קישוט של אותה החלטה שכבר התקבלה בשכבת החישוב —
-                    ולכן אי אפשר שהם ייפרדו ממנה. */}
-                <p className="flex items-center gap-2 text-lg font-bold text-slate-900">
-                  <Icon name={VERDICT_ICON[result.verdict]} className={VERDICT_ICON_TONE[result.verdict]} />
-                  {result.headlineHe}
-                </p>
-                <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                  {result.explanationHe}
-                </p>
+              <div
+                key={result.verdict}
+                className={`animate-rise rounded-[1.25rem] border p-5 ${VERDICT_SURFACE[result.verdict]}`}
+              >
+                <div className="flex items-start gap-3.5">
+                  <Medallion
+                    icon={VERDICT_ICON[result.verdict]}
+                    tone={VERDICT_MEDALLION[result.verdict]}
+                    className="size-12"
+                    iconClassName="size-6"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-lg leading-snug font-bold text-slate-900">{result.headlineHe}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                      {result.explanationHe}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <Card>
-                <CardTitle>אחרי הרכישה</CardTitle>
-                <Row label="יתרה">
-                  <Money agorot={result.after.balanceAgorot} />
-                </Row>
-                <Row label="בטוח להוציא" strong>
-                  <Money agorot={result.after.safeToSpendNowAgorot} signed />
-                </Row>
-                {result.reserveNeededAgorot > 0 ? (
-                  <Row label="מהכסף השמור לעתיד">
-                    <Money agorot={result.reserveNeededAgorot} />
+                <CardTitle icon="calculator">אחרי הרכישה</CardTitle>
+                <div className="grid grid-cols-2 gap-2">
+                  <StatTile
+                    label="יתרה"
+                    dot="slate"
+                    value={<Money agorot={result.after.balanceAgorot} />}
+                  />
+                  <StatTile
+                    label="בטוח להוציא"
+                    dot={result.after.safeToSpendNowAgorot < 0 ? 'danger' : 'brand'}
+                    value={<Money agorot={result.after.safeToSpendNowAgorot} signed />}
+                  />
+                  <StatTile
+                    label="תחזית סוף החודש"
+                    value={<Money agorot={result.after.monthEndForecastAgorot} />}
+                  />
+                  <StatTile
+                    label="תחזית 3 חודשים"
+                    value={<Money agorot={result.after.threeMonthForecastAgorot} />}
+                  />
+                </div>
+
+                <div className="mt-3 divide-y divide-slate-100">
+                  {result.reserveNeededAgorot > 0 ? (
+                    <Row label="מהכסף השמור לעתיד">
+                      <Money agorot={result.reserveNeededAgorot} />
+                    </Row>
+                  ) : null}
+                  {result.bufferBreachAgorot > 0 ? (
+                    <Row label="מסכום הביטחון">
+                      <Money agorot={result.bufferBreachAgorot} />
+                    </Row>
+                  ) : null}
+                  <Row label="נשאר עד היעד">
+                    <Money agorot={result.after.goalGapAgorot} />
                   </Row>
-                ) : null}
-                {result.bufferBreachAgorot > 0 ? (
-                  <Row label="מסכום הביטחון">
-                    <Money agorot={result.bufferBreachAgorot} />
-                  </Row>
-                ) : null}
-                <div className="my-2 border-t border-slate-100" />
-                <Row label="נשאר עד היעד">
-                  <Money agorot={result.after.goalGapAgorot} />
-                </Row>
-                {result.goalDelayDays > 0 ? (
-                  <Row label="היעד נדחה ב־">{result.goalDelayDays} ימים</Row>
-                ) : null}
-                {result.after.goalReachMonth ? (
-                  <Row label="תאריך יעד משוער">
-                    {formatMonthHe(result.after.goalReachMonth)}
-                  </Row>
-                ) : null}
-                <div className="my-2 border-t border-slate-100" />
-                <Row label="תחזית סוף החודש">
-                  <Money agorot={result.after.monthEndForecastAgorot} />
-                </Row>
-                <Row label="תחזית 3 חודשים">
-                  <Money agorot={result.after.threeMonthForecastAgorot} />
-                </Row>
+                  {result.goalDelayDays > 0 ? (
+                    <Row label="היעד נדחה ב־">
+                      <span className="num">{result.goalDelayDays}</span> ימים
+                    </Row>
+                  ) : null}
+                  {result.after.goalReachMonth ? (
+                    <Row label="תאריך יעד משוער">{formatMonthHe(result.after.goalReachMonth)}</Row>
+                  ) : null}
+                </div>
               </Card>
 
               {/* ── הכנסה צפויה, בנפרד ──────────────────────── */}
               {result.ifExpectedIncomeArrives ? (
                 <Card>
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                    <Icon name="sparkles" className="size-3.5" />לא כסף שיש לך עכשיו
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                    <Icon name="sparkles" className="size-3.5" />
+                    לא כסף שיש לך עכשיו
                   </p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-600">
                     אם ההכנסה הצפויה תיכנס (
@@ -188,21 +225,23 @@ export function CanIAfford({
               {/* ── חלופות ──────────────────────────────────── */}
               {result.alternatives.length > 0 ? (
                 <Card>
-                  <CardTitle>אפשרויות</CardTitle>
-                  {result.alternatives.map((alternative, index) => (
-                    <div
-                      key={alternative.kind}
-                      className="border-b border-slate-100 py-2.5 last:border-0"
-                    >
-                      <p className="text-sm font-semibold text-slate-900">
-                        {String.fromCharCode(1488 + index)}׳ · {alternative.labelHe}
-                      </p>
-                      <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-                        {alternative.detailHe}
-                      </p>
-                    </div>
-                  ))}
-                  <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                  <CardTitle icon="lightbulb">אפשרויות</CardTitle>
+                  <div className="space-y-3">
+                    {result.alternatives.map((alternative, index) => (
+                      <div key={alternative.kind} className="flex gap-3">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">
+                          {String.fromCharCode(1488 + index)}׳
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900">{alternative.labelHe}</p>
+                          <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+                            {alternative.detailHe}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-4 text-xs leading-relaxed text-slate-600">
                     אלה לא הוראות — רק המספרים. ההחלטה שלך.
                   </p>
                 </Card>
@@ -210,43 +249,50 @@ export function CanIAfford({
             </>
           ) : (
             <Card>
-              <CardTitle>המצב עכשיו</CardTitle>
-              <Row label="יתרה">
-                <Money agorot={dashboard.balance.totalAgorot} />
-              </Row>
-              <Row label="בטוח להוציא" strong>
-                <Money agorot={dashboard.safeToSpend.nowAgorot} />
-              </Row>
-              <Row label="שמור לחודשים הבאים">
-                <Money agorot={dashboard.safeToSpend.breakdown.reservedForFutureMonthsAgorot} />
-              </Row>
-              <Row label="סכום ביטחון">
-                <Money agorot={dashboard.safeToSpend.breakdown.safetyBufferAgorot} />
-              </Row>
-              <Row label="נשאר עד היעד">
-                <Money agorot={dashboard.goalProgress.gapAgorot} />
-              </Row>
+              <CardTitle icon="wallet">המצב עכשיו</CardTitle>
+              <div className="grid grid-cols-2 gap-2">
+                <StatTile label="יתרה" dot="slate" value={<Money agorot={dashboard.balance.totalAgorot} />} />
+                <StatTile
+                  label="בטוח להוציא"
+                  dot="brand"
+                  value={<Money agorot={dashboard.safeToSpend.nowAgorot} />}
+                />
+                <StatTile
+                  label="שמור לחודשים הבאים"
+                  value={
+                    <Money agorot={dashboard.safeToSpend.breakdown.reservedForFutureMonthsAgorot} />
+                  }
+                />
+                <StatTile
+                  label="סכום ביטחון"
+                  value={<Money agorot={dashboard.safeToSpend.breakdown.safetyBufferAgorot} />}
+                />
+                <StatTile
+                  className="col-span-2"
+                  label="נשאר עד היעד"
+                  value={<Money agorot={dashboard.goalProgress.gapAgorot} />}
+                />
+              </div>
             </Card>
           )}
 
           <Button variant="ghost" full onClick={() => setShowWhatIf((v) => !v)}>
+            <Icon name="sparkles" className="size-4" />
             {showWhatIf ? 'פחות' : 'מה יקרה אם…?'}
           </Button>
 
           {showWhatIf && purchase ? (
-            <Card>
+            <div className="grid animate-fade-in gap-2 sm:grid-cols-2">
               {[
                 whatIfSaveMonthly(purchase, fromShekels(100)),
                 whatIfReceive(purchase, fromShekels(500)),
               ].map((whatIf) => (
-                <div key={whatIf.labelHe} className="border-b border-slate-100 py-2 last:border-0">
-                  <p className="text-sm font-medium text-slate-900">{whatIf.labelHe}</p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-                    {whatIf.summaryHe}
-                  </p>
+                <div key={whatIf.labelHe} className="rounded-2xl bg-slate-50 p-3.5">
+                  <p className="text-sm font-semibold text-slate-900">{whatIf.labelHe}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{whatIf.summaryHe}</p>
                 </div>
               ))}
-            </Card>
+            </div>
           ) : null}
 
           <p className="pb-2 text-center text-xs text-slate-500">

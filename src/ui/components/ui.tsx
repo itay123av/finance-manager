@@ -135,6 +135,7 @@ const MEDALLION_TONES = {
   neutral: 'bg-slate-100 text-slate-600',
   brand: 'bg-brand-50 text-accent',
   caution: 'bg-caution-100 text-caution-700',
+  danger: 'bg-alertred-100 text-danger',
 } as const;
 
 export type MedallionTone = keyof typeof MEDALLION_TONES;
@@ -143,17 +144,20 @@ export function Medallion({
   icon,
   tone = 'neutral',
   className = 'size-8',
+  iconClassName = 'size-[1.125rem]',
 }: {
   icon: IconName;
   tone?: MedallionTone;
   className?: string;
+  /** מדליון גדול (סטטוס של מסך) צריך גם אייקון גדול, אחרת הוא נראה ריק. */
+  iconClassName?: string;
 }) {
   return (
     <span
       aria-hidden
       className={`flex shrink-0 items-center justify-center rounded-[0.625rem] ${MEDALLION_TONES[tone]} ${className}`}
     >
-      <Icon name={icon} className="size-[1.125rem]" />
+      <Icon name={icon} className={iconClassName} />
     </span>
   );
 }
